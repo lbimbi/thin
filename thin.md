@@ -161,6 +161,11 @@ Nota: i default sono tra parentesi.
 - La tabella cpstun inserisce voci in ordine crescente e aggiorna automaticamente il numero di funzione `f N`.
 - Le note TET mostrate in colonna sono calcolate per labeling 12-TET rispetto al diapason.
 
+### Bibliografia
+- Programma: SIM — Sistemi di intonazione musicale.
+- Questo manuale si riferisce specificamente a `SIM-2NV.py` (Versione 1.75).
+- Copyright © 2025 Luca Bimbi. Licenza MIT.
+
 ### Licenza e crediti
 
 Copyright (c) 2025 Luca Bimbi.
@@ -321,6 +326,11 @@ Defaults in parentheses.
 - Fraction→cents for `--et` limits denominator to avoid extremely fine fractions.
 - The cpstun table is written with ratios in increasing order and `f N` numbering is auto-incremented.
 - TET note labels are computed as 12-TET pitch names relative to the diapason.
+
+### References
+- Program: SIM — Tuning systems.
+- This manual specifically refers to `SIM-2NV.py` (Version 1.75).
+- Copyright © 2025 Luca Bimbi. MIT License.
 
 ### License and credits
 
