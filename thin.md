@@ -1,6 +1,6 @@
 # THIN – Sistemi di intonazione musicale / Tuning systems
 
-Version: PHI  •  Release date: 2025-09-06  •  Author: LUCA BIMBI  •  License: MIT
+Version: PHI  •  Release date: 2025-09-07  •  Author: LUCA BIMBI  •  License: MIT
 
 This manual is bilingual. Italian comes first, English follows below.
 
@@ -25,10 +25,14 @@ THIN è parte del progetto SIM e deriva concetti organizzativi dal documento SIM
 - Python 3.8+
 - Moduli standard: argparse, sys, math, re, os, shutil, fractions, typing, threading, time
 - Opzioni:
-  - Excel export (`*.xlsx`): `openpyxl`
+  - Export Excel (`*.xlsx`): `openpyxl`
     - installazione: `pip install openpyxl`
   - Analisi audio: `librosa` (consigliato anche `scipy` per un miglior peak picking)
     - installazione: `pip install librosa scipy`
+  - Grafico PNG diapason: `matplotlib`
+    - installazione: `pip install matplotlib`
+  - F0 HQ monofonico: `crepe`
+    - installazione: `pip install crepe`
 
 Uso locale:
 - Tenere `thin.py` in una cartella accessibile; su Unix-like si può renderlo eseguibile: `chmod +x thin.py`.
@@ -69,6 +73,7 @@ Nota: i default sono tra parentesi.
 | Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
 |-----------|-----------|------------|--------------|---------|-------------|
 | `--lang` | `{it,en}` | scelta | No | `it` | Lingua dell'interfaccia |
+| `--theme` | `{auto,dark,light}` | scelta | No | `auto` | Tema colori terminale; auto rileva sfondo chiaro/scuro |
 | `-v, --version` | - | flag | No | - | Stampa la versione del programma |
 | `--diapason` | `<Hz>` | float (Hz) | No | `440.0` | Diapason A4 in Hertz |
 | `--basekey` | `<MIDI>` | int (0..127) | No | `60` | Nota MIDI di partenza per la tabella |
@@ -93,6 +98,8 @@ Nota: i default sono tra parentesi.
 | `--interval-zero` | - | flag | No | - | Forza `interval=0` nella tabella cpstun (usa la serie non ripetuta) |
 | `--export-tun` | - | flag | No | - | Esporta file `.tun` (AnaMark TUN) |
 | `--tun-integer` | - | flag | No | - | `.tun`: arrotonda i cents all'intero più vicino |
+| `--convert` | `FILE.xlsx` | path file | No | - | Converte foglio Excel (System/Compare) in `.csd` e `.tun` |
+| `--import-tun` | `FILE.tun` | path file | No | - | Importa `.tun` e salva `*_ratios.txt` (MIDI→ratio) |
 
 ##### Confronto
 
@@ -109,11 +116,14 @@ Nota: i default sono tra parentesi.
 | Parametro | Argomenti | Tipo input | Obbligatorio | Default | Descrizione |
 |-----------|-----------|------------|--------------|---------|-------------|
 | `--audio-file` | `<wav>` | path file | No | - | File WAV da analizzare (richiede `librosa`) |
-| `--analysis` | `{lpc,specenv}` | scelta | No | `lpc` | Metodo di stima formanti (e F0) |
+| `--analysis` | `{lpc,specenv,sfft,cqt}` | scelta | No | `lpc` | Metodo di stima formanti (e F0) |
 | `--frame-size` | `<int>` | int | No | `1024` | Dimensione frame |
 | `--hop-size` | `<int>` | int | No | `512` | Hop size |
 | `--lpc-order` | `<int>` | int | No | `12` | Ordine LPC |
 | `--window` | `{hamming,hanning}` | scelta | No | `hamming` | Tipo finestra |
+| `--hq` | - | flag | No | - | F0 ad alta qualità (monofonico; richiede pacchetto `crepe`) |
+| `--diapason-analysis` | - | flag | No | - | Stima diapason (A4), suggerisce basenote 12-TET, esporta foglio "Diapason" e PNG |
+| `--render` | - | flag | No | - | Esporta WAV del tracking F0; con analisi genera anche `<base>_diapason.wav` (30s sinusoide A4 stimato) |
 
 ##### Output finale
 
@@ -123,14 +133,17 @@ Nota: i default sono tra parentesi.
 
 ### Comportamento e file generati
 
-- Banner iniziale: il programma stampa sempre Nome, Versione, Data, Autore, Licenza.
-- Help: è paginato entro 80 righe. Prompt `--More--` (Invio=continua, q=esci).
-- Riepilogo: prima delle tabelle viene mostrato un riepilogo dei parametri selezionati (in lingua IT/EN).
+- All'avvio lo schermo viene pulito e viene stampato un banner con Nome, Versione, Data, Autore, Licenza.
+- Help: impaginazione entro 80 righe con prompt `--More--` (Invio=continua, q=esci); testo in grassetto/colori con rilevazione del tema terminale (`--theme auto|dark|light`).
+- Riepilogo: prima delle tabelle viene mostrato un riepilogo dei parametri selezionati (IT/EN).
 - Tabelle `System`: colonne Step, MIDI, Ratio, Hz; ordinamento per Hz crescente.
 - Tabelle `Compare`: per ciascun passo mostra colonne Custom_Hz, Harmonic_Hz, DeltaHz_Harm, Subharm_Hz, DeltaHz_Sub, TET_Hz, TET_Note, DeltaHz_TET e, se presenti, AudioF0_Hz, AudioFormant_Hz, Formant_RelAmp.
 - Serie armonica: max 10 kHz; serie subarmonica: min 16 Hz; l'allineamento avviene rispetto alle frequenze del sistema custom.
 - Excel: richiede `openpyxl`; se non presente, l'export `.xlsx` viene saltato (messaggio a schermo localizzato).
-- Analisi audio: durante l'analisi appare un indicatore di avanzamento; in caso di fallimento, le tabelle sono comunque generate senza le colonne audio.
+- Analisi audio: indicatore di avanzamento fluido e non bloccante (spinner robusto). In caso di fallimento, le tabelle vengono comunque generate senza colonne audio.
+- Diapason analysis (`--diapason-analysis`): aggiunge il foglio "Diapason" in Excel e un file `_diapason.txt`; include A4 stimato, suggerimento di basenote 12‑TET, elenco F0, cluster di rapporti e la sezione “Inferred Steps” con colonne "Hz_from_Base(utente)" e "Hz_from_Base(stimato)".
+- Export PNG: con `--diapason-analysis` viene salvato anche `<base>_diapason.png` con quattro riquadri di riferimento (12‑TET Hz, Midicents, Pitagorico 12/7).
+- Render audio: con `--render` viene generato `<base>_render.wav` (sinusoidi controllate da F0); inoltre viene creato `<base>_diapason.wav` (30 s di sinusoide a A4 stimato).
 
 ### Esempi
 
@@ -173,6 +186,26 @@ Distribuito secondo la licenza MIT. Vedi il file LICENSE per i dettagli.
 
 Ringraziamenti: `openpyxl` per export Excel; `librosa` e (opz.) `scipy` per analisi.
 
+## Riferimenti
+
+1. **Csound Reference Manual** - Documentazione opcode cpstun
+2. **Csound. Guida al sound design in 20 lezioni**, Luca Bimbi, edizioni LSWR
+3. **I numeri della musica**, Walter Branchi, Edipan edizioni
+
+### Tabella Rapporti Comuni
+
+| Sistema            | Rapporto | Cents | Intervallo |
+|--------------------|----------|-------|------------|
+| Ottava             | 2/1 | 1200 | P8 |
+| Quinta giusta      | 3/2 | 701.96 | P5 |
+| Quarta giusta      | 4/3 | 498.04 | P4 |
+| Terza maggiore     | 5/4 | 386.31 | M3 |
+| Terza minore       | 6/5 | 315.64 | m3 |
+| Seconda maggiore   | 9/8 | 203.91 | M2 |
+| Seconda minore     | 10/9 | 182.40 | m2 |
+| Semitono diatonico | 16/15 | 111.73 | m2 |
+| Comma sintonico    | 81/80 | 21.51 | - |
+
 ---
 
 ## ENGLISH
@@ -197,6 +230,10 @@ It belongs to the SIM project and adopts ideas from SIM-2NV (manual-2nv.md), but
     - install: `pip install openpyxl`
   - Audio analysis: `librosa` (and preferably `scipy`)
     - install: `pip install librosa scipy`
+  - Diapason PNG plot: `matplotlib`
+    - install: `pip install matplotlib`
+  - HQ monophonic F0: `crepe`
+    - install: `pip install crepe`
 
 Local use:
 - Keep `thin.py` in a convenient folder; on Unix-like systems you can make it executable: `chmod +x thin.py`.
@@ -235,6 +272,7 @@ Defaults in parentheses.
 | Parameter | Arguments | Input type | Required | Default | Description |
 |-----------|-----------|------------|----------|---------|-------------|
 | `--lang` | `{it,en}` | choice | No | `it` | Interface language |
+| `--theme` | `{auto,dark,light}` | choice | No | `auto` | Terminal color theme; auto detects light/dark background |
 | `-v, --version` | - | flag | No | - | Print program version |
 | `--diapason` | `<Hz>` | float (Hz) | No | `440.0` | A4 reference in Hertz |
 | `--basekey` | `<MIDI>` | int (0..127) | No | `60` | Starting MIDI note for the table |
@@ -259,6 +297,8 @@ Defaults in parentheses.
 | `--interval-zero` | - | flag | No | - | Force `interval=0` in cpstun (uses non-repeated series) |
 | `--export-tun` | - | flag | No | - | Export `.tun` (AnaMark TUN) file |
 | `--tun-integer` | - | flag | No | - | `.tun`: round cents to nearest integer |
+| `--convert` | `FILE.xlsx` | file path | No | - | Convert Excel sheet (System/Compare) to `.csd` and `.tun` |
+| `--import-tun` | `FILE.tun` | file path | No | - | Import `.tun` and save `*_ratios.txt` (MIDI→ratio) |
 
 ##### Comparison
 
@@ -271,15 +311,17 @@ Defaults in parentheses.
 | `--midi-truncate` | - | flag | No | - | Truncate series to MIDI 0..127 |
 
 ##### Audio analysis (librosa)
-
 | Parameter | Arguments | Input type | Required | Default | Description |
 |-----------|-----------|------------|----------|---------|-------------|
 | `--audio-file` | `<wav>` | file path | No | - | WAV file to analyze (requires `librosa`) |
-| `--analysis` | `{lpc,specenv}` | choice | No | `lpc` | Formant (and F0) estimation method |
+| `--analysis` | `{lpc,specenv,sfft,cqt}` | choice | No | `lpc` | Formant (and F0) estimation method |
 | `--frame-size` | `<int>` | int | No | `1024` | Frame size |
 | `--hop-size` | `<int>` | int | No | `512` | Hop size |
 | `--lpc-order` | `<int>` | int | No | `12` | LPC order |
 | `--window` | `{hamming,hanning}` | choice | No | `hamming` | Window type |
+| `--hq` | - | flag | No | - | High-quality monophonic F0 (requires `crepe`) |
+| `--diapason-analysis` | - | flag | No | - | Estimate diapason (A4), suggest 12-TET basenote, export "Diapason" sheet and PNG |
+| `--render` | - | flag | No | - | Export WAV from F0 tracking; also export `<base>_diapason.wav` (30s tone at estimated A4) |
 
 ##### Final output
 
@@ -288,7 +330,6 @@ Defaults in parentheses.
 | `OUTPUT_BASE` | - | positional string | No | `out` | Base name for generated files |
 
 ### Behavior and generated files
-
 - Startup banner: the program always prints Name, Version, Date, Author, License.
 - Help: paginated within 80 rows. Prompt `--More--` (Enter=continue, q=quit).
 - Summary: before the tables, a localized run summary is printed.
@@ -297,6 +338,9 @@ Defaults in parentheses.
 - Harmonics: cutoff at 10 kHz; subharmonics: cutoff at 16 Hz; alignment is performed against the custom system frequencies.
 - Excel requires `openpyxl`; if missing, `.xlsx` export is skipped with a localized message.
 - Audio analysis: while running, a progress indicator is shown; if analysis fails, tables are generated without audio columns.
+- Diapason analysis (`--diapason-analysis`): adds a "Diapason" sheet in Excel and a `<base>_diapason.txt`; includes estimated A4, suggested 12‑TET basenote, F0 list, ratio clusters, and an "Inferred Steps" section with columns "Hz_from_Base(user)" and "Hz_from_Base(estimated)".
+- PNG export: when `--diapason-analysis` is active, `<base>_diapason.png` is saved, including four reference panels (12‑TET Hz, Midicents, Pythagorean 12/7).
+- Audio render: with `--render`, `<base>_render.wav` (F0‑driven sines) is produced; additionally `<base>_diapason.wav` (30 s sine at estimated A4).
 
 ### Examples
 
