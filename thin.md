@@ -124,6 +124,7 @@ Nota: i default sono tra parentesi.
 | `--hq` | - | flag | No | - | F0 ad alta qualità (monofonico; richiede pacchetto `crepe`) |
 | `--diapason-analysis` | - | flag | No | - | Stima diapason (A4), suggerisce basenote 12-TET, esporta foglio "Diapason" e PNG |
 | `--render` | - | flag | No | - | Esporta WAV del tracking F0; con analisi genera anche `<base>_diapason.wav` (30s sinusoide A4 stimato) |
+| `--scala-cent` | `<cents>` | float | No | - | Se impostato, elenca tutte le scale .scl con errore medio ≤ soglia (in cents) in console, `_diapason.txt` ed Excel (sezione Scala_Within) |
 
 ##### Output finale
 
@@ -142,8 +143,33 @@ Nota: i default sono tra parentesi.
 - Excel: richiede `openpyxl`; se non presente, l'export `.xlsx` viene saltato (messaggio a schermo localizzato).
 - Analisi audio: indicatore di avanzamento fluido e non bloccante (spinner robusto). In caso di fallimento, le tabelle vengono comunque generate senza colonne audio.
 - Diapason analysis (`--diapason-analysis`): aggiunge il foglio "Diapason" in Excel e un file `_diapason.txt`; include A4 stimato, suggerimento di basenote 12‑TET, elenco F0, cluster di rapporti e la sezione “Inferred Steps” con colonne "Hz_from_Base(utente)" e "Hz_from_Base(stimato)".
+  - Integrazione Scala (.scl): nel foglio "Diapason" compaiono anche “Scala_match” (nome/file/errore medio), “Scala_Map” (mappa dei gradi vicini), “Scala_Top5” (migliori 5 corrispondenze) e, se si usa `--scala-cent`, “Scala_Within” (tutte le scale entro la soglia in cents).
+  - Inferenza comparativa: oltre al sistema migliore (Tuning_inferred/Inferred_Steps), viene proposto un sistema complementare (Tuning_comparative/Comparative_Steps) di famiglia diversa (regola: TET ↔ Rank‑1; Pyth → TET).
+  - Formattazione migliorata: intestazioni evidenziate, zebra striping, bordi sottili e auto‑dimensionamento colonne per una lettura più chiara.
 - Export PNG: con `--diapason-analysis` viene salvato anche `<base>_diapason.png` con quattro riquadri di riferimento (12‑TET Hz, Midicents, Pitagorico 12/7).
 - Render audio: con `--render` viene generato `<base>_render.wav` (sinusoidi controllate da F0); inoltre viene creato `<base>_diapason.wav` (30 s di sinusoide a A4 stimato).
+
+### Integrazione Scala (.scl) e confronto complementare
+
+Nota: è necessario scaricare l'archivio ufficiale delle scale da https://www.huygens-fokker.org/docs/scales.zip e scompattare la cartella `scl/` nella stessa cartella dove si trova `thin.py`.
+
+- Il programma legge gli archivi di scale nella sottocartella `scl/` (formato `.scl` Scala – Huygens-Fokker) e confronta i centroidi dei rapporti stimati dall'audio con i gradi della scala.
+- Viene individuata la scala migliore (errore medio in cents), e sono mostrate anche le migliori 5 corrispondenze (Top‑5) ordinate per errore crescente.
+- Dove compaiono i risultati:
+  - Console: stampa tabella "Top 5 corrispondenze Scala (.scl)" con colonne Pos, Nome, File, Err (c);
+  - Testo: nel file `<base>_diapason.txt` sono incluse le sezioni `Scala_match`, `Scala_top5` e, se richiesto, `Scala_within`;
+  - Excel (foglio "Diapason"): sezioni "Scala_match", "Scala_Map", "Scala_Top5" e, se si usa `--scala-cent`, "Scala_Within".
+- Opzione `--scala-cent <cents>`: elenca tutte le scale `.scl` con errore medio ≤ soglia in console, testo ed Excel (sezione Scala_Within).
+- Oltre al sistema inferito principale, il programma propone un sistema di famiglia diversa come confronto complementare (regola: TET ↔ Rank‑1; Pyth → TET) nelle sezioni "Tuning_comparative" e "Comparative_Steps".
+
+Esempio di output a schermo (estratto):
+```
+Top 5 corrispondenze Scala (.scl):
+Pos  Nome                                             File               Err (c)
+1    Kyle Gann from Anatomy of an Octave ...          gann_wolfe.scl     0.36
+2    kalisma, ragisma, schisma and Breedsma ...       pipedum_342.scl    0.62
+3    365.24218967th root of 2 ...                     etdays.scl         0.70
+```
 
 ### Esempi
 
@@ -165,6 +191,11 @@ Nota: i default sono tra parentesi.
 - Analisi audio su file voce, metodo LPC, base C+4:
 ```
 ./thin.py --basenote C+4 --audio-file voce.wav --analysis lpc out_voice
+```
+
+- Analisi diapason con riconoscimento Scala (Top‑5) e soglia 1.0 cent:
+```
+./thin.py --audio-file sample.wav --analysis lpc --diapason-analysis --scala-cent 1.0 out_diap
 ```
 
 ### Note e limitazioni
@@ -322,6 +353,7 @@ Defaults in parentheses.
 | `--hq` | - | flag | No | - | High-quality monophonic F0 (requires `crepe`) |
 | `--diapason-analysis` | - | flag | No | - | Estimate diapason (A4), suggest 12-TET basenote, export "Diapason" sheet and PNG |
 | `--render` | - | flag | No | - | Export WAV from F0 tracking; also export `<base>_diapason.wav` (30s tone at estimated A4) |
+| `--scala-cent` | `<cents>` | float | No | - | If set, list all .scl scales with average error ≤ threshold (in cents) in console, `_diapason.txt`, and Excel (Scala_Within section) |
 
 ##### Final output
 
@@ -339,8 +371,33 @@ Defaults in parentheses.
 - Excel requires `openpyxl`; if missing, `.xlsx` export is skipped with a localized message.
 - Audio analysis: while running, a progress indicator is shown; if analysis fails, tables are generated without audio columns.
 - Diapason analysis (`--diapason-analysis`): adds a "Diapason" sheet in Excel and a `<base>_diapason.txt`; includes estimated A4, suggested 12‑TET basenote, F0 list, ratio clusters, and an "Inferred Steps" section with columns "Hz_from_Base(user)" and "Hz_from_Base(estimated)".
+  - Scala integration (.scl): in the "Diapason" sheet you will also find “Scala_match” (name/file/avg error), “Scala_Map” (nearest degree mapping), “Scala_Top5” (best 5 matches) and, if `--scala-cent` is used, “Scala_Within” (all scales within the given cents threshold).
+  - Comparative inference: besides the best fitting system (Tuning_inferred/Inferred_Steps), a complementary system from a different family is proposed (rule: TET ↔ Rank‑1; Pyth → TET) under "Tuning_comparative"/"Comparative_Steps".
+  - Formatting improvements: highlighted headers, zebra striping, thin borders, and auto‑sized columns for better readability.
 - PNG export: when `--diapason-analysis` is active, `<base>_diapason.png` is saved, including four reference panels (12‑TET Hz, Midicents, Pythagorean 12/7).
 - Audio render: with `--render`, `<base>_render.wav` (F0‑driven sines) is produced; additionally `<base>_diapason.wav` (30 s sine at estimated A4).
+
+### Scala (.scl) integration and complementary comparison
+
+Note: you must download the official scales archive from https://www.huygens-fokker.org/docs/scales.zip and unzip the `scl/` folder into the same directory as `thin.py`.
+
+- The program reads scale archives from the `scl/` subfolder (Scala `.scl` format – Huygens‑Fokker) and compares the audio‑inferred ratio cluster centers against the scale degrees (cents, circular distance).
+- The best matching scale (lowest weighted average cents error) is reported, and the Top‑5 matches are also listed in increasing error order.
+- Where results appear:
+  - Console: prints a "Top 5 Scala matches (.scl)" table with columns Rank, Name, File, Err (c);
+  - Text: `<base>_diapason.txt` includes `Scala_match`, `Scala_top5`, and, if requested, `Scala_within` sections;
+  - Excel ("Diapason" sheet): sections "Scala_match", "Scala_Map", "Scala_Top5", and—when using `--scala-cent`—"Scala_Within".
+- Option `--scala-cent <cents>`: list all `.scl` scales whose average error ≤ threshold in console, text and Excel (Scala_Within section).
+- Besides the primary inferred system, a complementary system from a different family is proposed (rule: TET ↔ Rank‑1; Pyth → TET) in the "Tuning_comparative" and "Comparative_Steps" sections.
+
+Sample console output (excerpt):
+```
+Top 5 Scala matches (.scl):
+Rank  Name                                           File              Err (c)
+1     Kyle Gann from Anatomy of an Octave ...        gann_wolfe.scl    0.36
+2     kalisma, ragisma, schisma and Breedsma ...     pipedum_342.scl   0.62
+3     365.24218967th root of 2 ...                   etdays.scl        0.70
+```
 
 ### Examples
 
@@ -362,6 +419,11 @@ Defaults in parentheses.
 - Audio analysis on a voice file, LPC method, basenote C+4:
 ```
 ./thin.py --basenote C+4 --audio-file voice.wav --analysis lpc out_voice
+```
+
+- Diapason analysis with Scala recognition (Top‑5) and 1.0 cent threshold:
+```
+./thin.py --audio-file sample.wav --analysis lpc --diapason-analysis --scala-cent 1.0 out_diap
 ```
 
 ### Notes and limitations

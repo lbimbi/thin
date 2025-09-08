@@ -3,14 +3,15 @@
 # ruff: noqa: BLE001
 # pylint: disable=broad-exception-caught
 """
-THIN - Sistemi di intonazione musicale
+THIN – Sistemi di intonazione musicale / Musical intonation systems (IT/EN)
 Copyright (c) 2025 Luca Bimbi
-Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli
+Distribuito secondo la licenza MIT - vedi il file LICENSE per i dettagli /
+Distributed under the MIT license – see the LICENSE file for details
 
-Nome programma: THIN - Sistemi intonazione musicale
-Versione: PHI
-Autore: LUCA BIMBI
-Data: 2025-09-06
+Nome programma: THIN – Sistemi di intonazione musicale / Program name: THIN – Musical intonation systems
+Versione / Version: PHI
+Autore / Author: LUCA BIMBI
+Data / Date: 2025-09-06
 """
 
 import argparse
@@ -46,7 +47,7 @@ MIDI_MAX = 127
 MIDI_A4 = 69
 SEMITONES_PER_OCTAVE = 12
 
-# Costanti colonne Excel
+# Costanti colonne Excel / Excel column constants (IT/EN)
 CUSTOM_COLUMN = "D"
 HARM_COLUMN = "E"
 SUB_COLUMN = "G"
@@ -57,10 +58,10 @@ FORMANT_COLUMN = "M"
 # Localizzazione semplice / Simple localization (IT/EN)
 _LANG = "it"
 
-# Pattern per parsing file .csd
+# Pattern per parsing file .csd / Regex pattern for .csd parsing (IT/EN)
 PATTERN = re.compile(r"\bf\s*(\d+)\b")
 
-# Tipo per valori numerici (int, float o Fraction)
+# Tipo per valori numerici (int, float o Fraction) / Numeric type alias (int, float or Fraction) (IT/EN)
 Numeric = Union[int, float, Fraction]
 
 def L(it_msg: str, en_msg: str) -> str:
@@ -126,7 +127,7 @@ _DEF_COLORS = {
     'light': {
         # On light backgrounds, prefer higher-contrast hues
         'FG_CYAN': "\033[34m",     # blue
-        'FG_GREEN': "\033[32m",   
+        'FG_GREEN': "\033[32m",
         'FG_YELLOW': "\033[31m",  # red instead of yellow (poor contrast on white)
         'FG_MAGENTA': "\033[35m",
     }
@@ -176,6 +177,30 @@ def apply_theme(theme: str) -> None:
         _current_theme = t
     except Exception:
         _current_theme = 'dark'
+
+
+# Terminal helpers to avoid redundancy and improve robustness
+# Returns (cols, rows) with sane fallbacks
+def _term_size(default_cols: int = 80, default_rows: int = 24) -> Tuple[int, int]:
+    try:
+        size = shutil.get_terminal_size(fallback=(int(default_cols), int(default_rows)))
+        cols = int(size.columns)
+        rows = int(size.lines)
+        return (max(1, cols), max(1, rows))
+    except Exception:
+        return (int(default_cols), int(default_rows))
+
+# Returns only columns with fallback
+def _term_cols(default_cols: int = 80) -> int:
+    cols, _rows = _term_size(default_cols, 24)
+    return cols
+
+# Clear current terminal line up to given columns
+def _clear_line(cols: int) -> None:
+    try:
+        print("\r" + (" " * int(cols)) + "\r", end="")
+    except Exception:
+        pass
 
 
 def _detect_theme_from_argv(argv: Optional[List[str]] = None) -> str:
@@ -332,7 +357,7 @@ def normalize_ratios(ratios: Iterable[Numeric], reduce_octave: bool = True) -> L
         v = reduce_to_octave(r) if reduce_octave else r
         v_float = float(v)
 
-        # Controlla duplicati con tolleranza
+        # Controlla duplicati con tolleranza / Check duplicates with tolerance (IT/EN)
         if not any(abs(v_float - s) <= RATIO_EPS for s in seen):
             seen.append(v_float)
             processed.append(v_float)
@@ -388,7 +413,7 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
     vals = []
 
     if full_grid:
-        # Mappatura basata sugli appunti di Danielou
+        # Mappatura basata sugli appunti di Danielou / Mapping based on Danielou's notes (IT/EN)
         series_spec = {
             0: (5, 5),  # Prima serie su 1/1
             1: (3, 4),  # Seconda serie su 6/5
@@ -400,26 +425,26 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
         }
 
         for a, (desc_n, asc_n) in series_spec.items():
-            # Quinte discendenti
+            # Quinte discendenti / Descending fifths (IT/EN)
             for b in range(-desc_n, 0):
                 r = pow_fraction(six_over_five, a) * pow_fraction(three_over_two, b)
                 vals.append(r)
-            # Centro serie
+            # Centro serie / Series center (IT/EN)
             vals.append(pow_fraction(six_over_five, a))
-            # Quinte ascendenti
+            # Quinte ascendenti / Ascending fifths (IT/EN)
             for b in range(1, asc_n + 1):
                 r = pow_fraction(six_over_five, a) * pow_fraction(three_over_two, b)
                 vals.append(r)
     else:
-        # Sottoinsieme dimostrativo
+        # Sottoinsieme dimostrativo / Demonstrative subset (IT/EN)
         vals.append(Fraction(1, 1))
-        # Asse delle quinte
+        # Asse delle quinte / Circle (axis) of fifths (IT/EN)
         for b in range(-5, 6):
             vals.append(pow_fraction(three_over_two, b))
-        # Terze minori armoniche
+        # Terze minori armoniche / Harmonic minor thirds (IT/EN)
         for k in range(1, 4):
             vals.append(pow_fraction(six_over_five, k))
-        # Seste maggiori armoniche
+        # Seste maggiori armoniche / Harmonic major sixths (IT/EN)
         five_over_three = Fraction(5, 3)
         for k in range(1, 4):
             vals.append(pow_fraction(five_over_three, k))
@@ -497,7 +522,7 @@ def parse_interval_value(value: str) -> Union[Fraction, float]:
 
     s = str(value).strip().lower()
 
-    # Controlla suffissi cents
+    # Controlla suffissi cents / Check 'cents' suffixes (IT/EN)
     cents_suffixes = ['cents', 'cent', 'c']
     for suffix in cents_suffixes:
         if s.endswith(suffix):
@@ -511,11 +536,11 @@ def parse_interval_value(value: str) -> Union[Fraction, float]:
                 raise argparse.ArgumentTypeError("L'intervallo in cents deve essere > 0")
             return ratio
 
-    # Prova int o frazione
+    # Prova int o frazione / Try int or fraction (IT/EN)
     try:
         parsed_val = int_or_fraction(s)
         if isinstance(parsed_val, int):
-            # Intero puro => cents
+            # Intero puro => cents / Pure integer => cents (IT/EN)
             cents_val = float(parsed_val)
             ratio = cents_to_fraction(cents_val)
             if float(ratio) <= 1.0:
@@ -526,7 +551,7 @@ def parse_interval_value(value: str) -> Union[Fraction, float]:
                 raise argparse.ArgumentTypeError("L'intervallo (rapporto) deve essere > 1")
         return ratio
     except argparse.ArgumentTypeError:
-        # Prova float come rapporto
+        # Prova float come rapporto / Try float as ratio (IT/EN)
         try:
             f = float(s)
             if not math.isfinite(f) or f <= 1.0:
@@ -543,7 +568,7 @@ def parse_danielou_tuple(value: str) -> Tuple[int, int, int]:
 
     s = str(value).strip()
 
-    # Rimuove parentesi esterne
+    # Rimuove parentesi esterne / Remove outer parentheses (IT/EN)
     if s and s[0] in '[({' and s[-1] in '])}':
         s = s[1:-1].strip()
 
@@ -609,13 +634,13 @@ def convert_note_name_to_midi(note_name: str) -> int:
     try:
         octave = int(s_up[idx:])
     except (ValueError, IndexError):
-        raise ValueError(L(f"Formato ottava non valido in: {note_name}", 
+        raise ValueError(L(f"Formato ottava non valido in: {note_name}",
                            f"Invalid octave format in: {note_name}"))
 
     midi_value = (octave + 1) * SEMITONES_PER_OCTAVE + note_map[note] + alteration
 
     if not (MIDI_MIN <= midi_value <= MIDI_MAX):
-        raise ValueError(L(f"Nota MIDI fuori range: {midi_value}", 
+        raise ValueError(L(f"Nota MIDI fuori range: {midi_value}",
                            f"MIDI note out of range: {midi_value}"))
 
     return midi_value
@@ -660,12 +685,12 @@ def parse_note_with_microtones(note_name: str) -> Tuple[int, float]:
     try:
         octave = int(s_up[idx:])
     except (ValueError, IndexError):
-        raise ValueError(L(f"Formato ottava non valido in: {note_name}", 
+        raise ValueError(L(f"Formato ottava non valido in: {note_name}",
                            f"Invalid octave format in: {note_name}"))
 
     midi_value = (octave + 1) * SEMITONES_PER_OCTAVE + note_map[note] + semitones
     if not (MIDI_MIN <= midi_value <= MIDI_MAX):
-        raise ValueError(L(f"Nota MIDI fuori range: {midi_value}", 
+        raise ValueError(L(f"Nota MIDI fuori range: {midi_value}",
                            f"MIDI note out of range: {midi_value}"))
 
     return midi_value, cents
@@ -785,13 +810,13 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
 
     fnum = parse_file(csd_path) + 1
 
-    # Ordina i rapporti
+    # Ordina i rapporti / Sort ratios (IT/EN)
     try:
         ratios_sorted = sorted(float(r) for r in ratios)
     except (TypeError, ValueError):
         ratios_sorted = [float(r) for r in ratios]
 
-    # Determina parametri cpstun
+    # Determina parametri cpstun / Determine cpstun parameters (IT/EN)
     numgrades = len(ratios_sorted)
 
     if interval_value is not None and isinstance(interval_value, (int, float)):
@@ -804,7 +829,7 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
         except (TypeError, ValueError):
             interval = 0.0
 
-    # Costruisci lista dati
+    # Costruisci lista dati / Build data list (IT/EN)
     data_list = [
         str(numgrades),
         f"{float(interval):.10g}",
@@ -815,7 +840,7 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
 
     size = len(data_list)
 
-    # Costruisci righe
+    # Costruisci righe / Build lines (IT/EN)
     prefix = f"f {fnum} 0 {size} -2 "
     positions = []
     col = len(prefix)
@@ -840,7 +865,7 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
     )
     f_line = prefix + " ".join(data_list) + "\n"
 
-    # Inserisci prima di </CsScore>
+    # Inserisci prima di </CsScore> / Insert before </CsScore> (IT/EN)
     insert_marker = "</CsScore>"
     idx = content.rfind(insert_marker)
     if idx == -1:
@@ -871,7 +896,7 @@ def write_tun_file(output_base: str, ratios: List[float], basekey: int,
     def tet_freq(offset_semitones: int) -> float:
         return basefrequency * (2.0 ** (offset_semitones / 12.0))
 
-    # Ordina i rapporti per garantire valori crescenti nel segmento custom
+    # Ordina i rapporti per garantire valori crescenti nel segmento custom / Sort ratios to ensure ascending custom segment (IT/EN)
     try:
         ratios_sorted = sorted(float(r) for r in ratios)
     except (TypeError, ValueError):
@@ -887,7 +912,7 @@ def write_tun_file(output_base: str, ratios: List[float], basekey: int,
         else:
             return tet_freq(n - basekey)
 
-    # Riferimento assoluto AnaMark
+    # Riferimento assoluto AnaMark / AnaMark absolute reference (IT/EN)
     f_ref = 8.1757989156437073336
 
     for note_idx in range(128):
@@ -921,7 +946,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
     Importa un file .tun (AnaMark TUN) e converte i valori in ratios relativi a basekey.
     Salva un file .txt con mappatura 'MIDI -> ratio' per le note disponibili.
     """
-    # Riferimento assoluto AnaMark (stesso di write_tun_file)
+    # Riferimento assoluto AnaMark (stesso di write_tun_file) / AnaMark absolute reference (same as write_tun_file) (IT/EN)
     f_ref = 8.1757989156437073336
 
     cents_map = {}
@@ -931,7 +956,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
                 s = line.strip()
                 if not s or s.startswith(";") or s.startswith("#"):
                     continue
-                # Consenti e ignora le sezioni come [Tuning]
+                # Consenti e ignora le sezioni come [Tuning] / Allow and ignore sections like [Tuning] (IT/EN)
                 if s.startswith("[") and s.endswith("]"):
                     continue
                 m = re.match(r'^(?:[Nn]ote|[Kk]ey)\s+(\d{1,3})\s*=\s*([+-]?\d+(?:\.\d+)?)', s)
@@ -951,7 +976,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
         print(L("File .tun vuoto o non riconosciuto", "Empty or unrecognized .tun file"))
         return None
 
-    # Cents -> frequenze assolute
+    # Cents -> frequenze assolute / Cents -> absolute frequencies (IT/EN)
     freq_map = {}
     for k, cv in cents_map.items():
         try:
@@ -959,7 +984,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
         except Exception:
             continue
 
-    # Determina frequenza base
+    # Determina frequenza base / Determine base frequency (IT/EN)
     if basekey in freq_map:
         base_freq = freq_map[basekey]
         base_key_eff = basekey
@@ -975,7 +1000,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
         print(L("Frequenza base non valida nel .tun", "Invalid base frequency in .tun"))
         return None
 
-    # Costruisci ratios rispetto a base_key_eff
+    # Costruisci ratios rispetto a base_key_eff / Build ratios relative to base_key_eff (IT/EN)
     ratios_by_midi = {}
     for n in range(128):
         f = freq_map.get(n)
@@ -988,7 +1013,7 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
                     pass
             ratios_by_midi[n] = float(r)
 
-    # Scrivi file di output
+    # Scrivi file di output / Write output file (IT/EN)
     base_name = os.path.splitext(os.path.basename(tun_path))[0]
     out_path = f"{base_name}_ratios.txt"
     try:
@@ -1007,19 +1032,19 @@ def import_tun_file(tun_path: str, basekey: int = DEFAULT_BASEKEY, reduce_octave
 def export_system_tables(output_base: str, ratios: List[float], basekey: int,
                          basenote_hz: float) -> None:
     """Esporta tabelle del sistema generato."""
-    # Calcola e ordina
+    # Calcola e ordina / Compute and sort (IT/EN)
     computed = [(basenote_hz * float(r), i, basekey + i, float(r))
                 for i, r in enumerate(ratios)]
     computed.sort(key=lambda t: t[0])
 
-    # Export testo
+    # Export testo / Text export (IT/EN)
     txt_path = f"{output_base}_system.txt"
     headers = ["Step", "MIDI", "Ratio", "Hz"]
     try:
         rows = [[str(i), str(basekey + i), f"{r:.10f}", f"{hz:.6f}"]
                 for i, (hz, _, _, r) in enumerate(computed)]
 
-        # Calcola larghezze colonne
+        # Calcola larghezze colonne / Compute column widths (IT/EN)
         widths = [len(h) for h in headers]
         for row in rows:
             for c, val in enumerate(row):
@@ -1133,10 +1158,11 @@ def analyze_audio(audio_path: str,
         if fmin_eff >= fmax:
             fmin_eff = 0.5 * fmax
         if fmin_eff > fmin:
-            print(L(
-                f"Adatto automaticamente fmin da {fmin:.3f} a {fmin_eff:.3f} Hz per frame_length={frame_size}",
-                f"Auto-adapting fmin from {fmin:.3f} to {fmin_eff:.3f} Hz for frame_length={frame_size}"
-            ))
+            pass
+            #print(L(
+            #    f"Adatto automaticamente fmin da {fmin:.3f} a {fmin_eff:.3f} Hz per frame_length={frame_size}",
+            #    f"Auto-adapting fmin from {fmin:.3f} to {fmin_eff:.3f} Hz for frame_length={frame_size}"
+            #))
         # Use the effective fmin for subsequent pYIN/YIN calls
         fmin = fmin_eff
         if use_hq:
@@ -1394,11 +1420,11 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                              tet_divisions: int = 12,
                              analysis_result: Optional[dict] = None,
                              delta_threshold_hz: float = 0.0) -> None:
-    """Esporta tabelle di confronto con TET (12/24/48), serie armonica, subarmonica e analisi audio opzionale. / 
+    """Esporta tabelle di confronto con TET (12/24/48), serie armonica, subarmonica e analisi audio opzionale. /
     Export comparison with TET (12/24/48), harmonic, subharmonic, and optional audio analysis."""
 
     def freq_to_note_name(freq: float, a4_hz: float) -> str:
-        """Converte frequenza in nome nota 12-TET (solo per labeling). / 
+        """Converte frequenza in nome nota 12-TET (solo per labeling). /
         Convert frequency to 12-TET note name (labeling only)."""
         try:
             if not (freq > 0 and a4_hz > 0):
@@ -1413,7 +1439,7 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
         return f"{name}{octave}"
 
     def tet_step_index(freq: float, base_freq: float, divs: int) -> int:
-        """Restituisce l'indice del passo TET più vicino da base_freq. / 
+        """Restituisce l'indice del passo TET più vicino da base_freq. /
         Return nearest TET step index from base_freq."""
         if freq <= 0 or base_freq <= 0:
             return 0
@@ -1591,7 +1617,8 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
     # Export Excel (opzionale)
     try:
         from openpyxl import Workbook
-        from openpyxl.styles import Font, PatternFill
+        from openpyxl.styles import Font, PatternFill, Border, Side, Alignment
+        from openpyxl.utils import get_column_letter
 
         wb = Workbook()
         ws = wb.active
@@ -1723,6 +1750,88 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
             except (ValueError, TypeError):
                 base_hint = ""
             ws2.append(["Base_hint_Hz_for_ratios", base_hint])
+            # Scala match (from scl/)
+            try:
+                _sc_info = analysis_result.get('scala_match_info') if isinstance(analysis_result, dict) else None
+            except Exception:
+                _sc_info = None
+            if _sc_info:
+                ws2.append(["Scala_match_name", _sc_info.get('name','')])
+                ws2.append(["Scala_match_file", _sc_info.get('file','')])
+                try:
+                    ws2.append(["Scala_match_avg_error_cents", float(_sc_info.get('avg_cents_error'))])
+                except Exception:
+                    ws2.append(["Scala_match_avg_error_cents", ""])    
+                # Optional: steps mapping
+                _sc_steps = analysis_result.get('scala_match_steps') if isinstance(analysis_result, dict) else None
+                if _sc_steps:
+                    ws2.append(["Scala_Map", "(index)", "Ratio", "Hz_from_Base(utente)", "Hz_from_Base(stimato)", "Cents", "Count"])
+                    for c in range(1, 8):
+                        cell = ws2.cell(row=ws2.max_row, column=c)
+                        cell.font = Font(bold=True)
+                        cell.fill = header_fill
+                    # determine estimated base for steps (re-use base_est_for_steps after it's computed below if available)
+                    _base_est_for_steps = None
+                    try:
+                        if isinstance(analysis_result, dict) and analysis_result.get('basenote_est_hz'):
+                            _base_est_for_steps = float(analysis_result.get('basenote_est_hz'))
+                    except Exception:
+                        _base_est_for_steps = None
+                    if _base_est_for_steps is None:
+                        try:
+                            _a4_est_try = float(analysis_result.get('diapason_est')) if analysis_result.get('diapason_est') is not None else None
+                            if _a4_est_try and float(diapason_hz) > 0:
+                                _base_est_for_steps = float(basenote_hz) * (_a4_est_try / float(diapason_hz))
+                        except Exception:
+                            _base_est_for_steps = None
+                    for (idx_step, ratio_c, cnt) in _sc_steps:
+                        try:
+                            _hz_user = float(basenote_hz) * float(ratio_c)
+                            _hz_est = (float(_base_est_for_steps) * float(ratio_c)) if isinstance(_base_est_for_steps, (int, float)) and _base_est_for_steps > 0 else ""
+                            _cents = 1200.0 * math.log2(float(ratio_c))
+                            ws2.append([None, int(idx_step), float(ratio_c), float(_hz_user), _hz_est if _hz_est != "" else "", float(_cents), int(cnt)])
+                        except Exception:
+                            continue
+            # Top-5 Scala matches table
+            try:
+                _sc_top = analysis_result.get('scala_top_matches') if isinstance(analysis_result, dict) else None
+            except Exception:
+                _sc_top = None
+            if _sc_top:
+                ws2.append(["Scala_Top5", "Rank", "Name", "File", "AvgError_cents"] )
+                # style header
+                for c in range(1, 6):
+                    cell = ws2.cell(row=ws2.max_row, column=c)
+                    cell.font = Font(bold=True)
+                    cell.fill = header_fill
+                for i, item in enumerate(_sc_top[:5], start=1):
+                    try:
+                        nm = item.get('name','')
+                        fl = item.get('file','')
+                        er = float(item.get('avg_cents_error')) if item.get('avg_cents_error') is not None else ""
+                    except Exception:
+                        nm, fl, er = '', '', ""
+                    ws2.append([None, i, nm, fl, er if er != "" else ""]) 
+            # Scala within-threshold block (optional)
+            try:
+                _sc_within = analysis_result.get('scala_within_matches') if isinstance(analysis_result, dict) else None
+                _sc_thr = analysis_result.get('scala_within_threshold_cents') if isinstance(analysis_result, dict) else None
+            except Exception:
+                _sc_within, _sc_thr = None, None
+            if _sc_within:
+                ws2.append(["Scala_Within", "Rank", "Name", "File", "AvgError_cents", "Threshold_cents", (_sc_thr if isinstance(_sc_thr, (int, float)) else "")])
+                for c in range(1, 8):
+                    cell = ws2.cell(row=ws2.max_row, column=c)
+                    cell.font = Font(bold=True)
+                    cell.fill = header_fill
+                for i, item in enumerate(_sc_within, start=1):
+                    try:
+                        nm = item.get('name','')
+                        fl = item.get('file','')
+                        er = float(item.get('avg_cents_error')) if item.get('avg_cents_error') is not None else ""
+                    except Exception:
+                        nm, fl, er = '', '', ""
+                    ws2.append([None, i, nm, fl, er if er != "" else "", (_sc_thr if isinstance(_sc_thr, (int, float)) else "")])
             # Basenote estimated from analysis (12-TET suggestion)
             try:
                 bn_est_hz = float(analysis_result.get('basenote_est_hz')) if analysis_result.get('basenote_est_hz') is not None else ""
@@ -1741,7 +1850,7 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
             f0_list_raw = analysis_result.get('f0_list') or []
             # Sort F0 ascending for scale-like presentation
             f0_list_sorted = sorted([float(x) for x in f0_list_raw if isinstance(x, (int, float)) or (isinstance(x, str) and x)])
-            # Parse estimated A4 if available
+            # Parse A4 stimato se disponibile
             try:
                 a4_est_val_f = float(analysis_result.get('diapason_est')) if analysis_result.get('diapason_est') is not None else None
             except (ValueError, TypeError):
@@ -1794,7 +1903,7 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                 ws2.append(["Tuning_inferred", tun_info.get('name', ''), "AvgError_cents", tun_info.get('avg_cents_error', '')])
             else:
                 ws2.append(["Tuning_inferred", "", "AvgError_cents", ""]) 
-            ws2.append(["Inferred_Steps", "(index)", "Ratio", "Hz_from_Base(utente)", "Hz_from_Base(stimato)", "Cents", "Count"]) 
+            ws2.append(["Inferred_Steps", "(index)", "Ratio", "Hz_from_Base(utente)", "Hz_from_Base(stimato)", "Cents", "Count"])
             # Header style
             header_fill2 = PatternFill(start_color="FFEEEEEE", end_color="FFEEEEEE", fill_type="solid")
             for c in range(1, 8):
@@ -1826,6 +1935,28 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                         ws2.append([None, int(idx_step), float(ratio_c), float(hz_user), hz_est if hz_est != "" else "", float(cents), int(cnt)])
                     except Exception:
                         continue
+            # Comparative tuning (if available)
+            comp_info = analysis_result.get('tuning_comparative') if isinstance(analysis_result, dict) else None
+            comp_steps = analysis_result.get('scale_steps_comp') if isinstance(analysis_result, dict) else None
+            ws2.append([])
+            if comp_info:
+                ws2.append(["Tuning_comparative", comp_info.get('name',''), "AvgError_cents", comp_info.get('avg_cents_error','')])
+            else:
+                ws2.append(["Tuning_comparative", "", "AvgError_cents", ""]) 
+            ws2.append(["Comparative_Steps", "(index)", "Ratio", "Hz_from_Base(utente)", "Hz_from_Base(stimato)", "Cents", "Count"])
+            for c in range(1, 8):
+                cell = ws2.cell(row=ws2.max_row, column=c)
+                cell.font = Font(bold=True)
+                cell.fill = header_fill2
+            if comp_steps:
+                for (idx_step, ratio_c, cnt) in comp_steps:
+                    try:
+                        hz_user = float(basenote_hz) * float(ratio_c)
+                        hz_est = (float(base_est_for_steps) * float(ratio_c)) if isinstance(base_est_for_steps, (int, float)) and base_est_for_steps > 0 else ""
+                        cents = 1200.0 * math.log2(float(ratio_c))
+                        ws2.append([None, int(idx_step), float(ratio_c), float(hz_user), hz_est if hz_est != "" else "", float(cents), int(cnt)])
+                    except Exception:
+                        continue
 
             # --- Sezioni di confronto: 12-TET e Pitagorico (per diapason utente ed eventuale stimato) ---
             ws2.append([])
@@ -1835,7 +1966,7 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
             def add_section(title: str, rows: list) -> None:
                 ws2.append([title])
                 ws2.cell(row=ws2.max_row, column=1).font = Font(bold=True)
-                ws2.append(["Step", "Ratio", "Hz", "Cents"]) 
+                ws2.append(["Step", "Ratio", "Hz", "Cents"])
                 header_fill2 = PatternFill(start_color="FFEEEEEE", end_color="FFEEEEEE", fill_type="solid")
                 for c in range(1, 5):
                     cell = ws2.cell(row=ws2.max_row, column=c)
@@ -1891,9 +2022,9 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
 
             # Build for user diapason (current basenote_hz)
             rows_user = build_rows_for_base(float(basenote_hz))
-            add_section(f"12-TET (utente A4={float(diapason_hz):.2f} Hz)", rows_user["tet"]) 
-            add_section("Pitagorico 12 (utente)", rows_user["py12"]) 
-            add_section("Pitagorico 7 (utente)", rows_user["py7"]) 
+            add_section(f"12-TET (utente A4={float(diapason_hz):.2f} Hz)", rows_user["tet"])
+            add_section("Pitagorico 12 (utente)", rows_user["py12"])
+            add_section("Pitagorico 7 (utente)", rows_user["py7"])
 
             # If estimated diapason/basenote is available, build second set
             rows_est = None
@@ -1912,19 +2043,97 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
             if isinstance(bn_est_hz, (int, float)) and bn_est_hz > 0:
                 base_est_hz = bn_est_hz
                 rows_est = build_rows_for_base(base_est_hz)
-                add_section(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est["tet"]) 
-                add_section("Pitagorico 12 (stimato)", rows_est["py12"]) 
-                add_section("Pitagorico 7 (stimato)", rows_est["py7"]) 
+                add_section(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est["tet"])
+                add_section("Pitagorico 12 (stimato)", rows_est["py12"])
+                add_section("Pitagorico 7 (stimato)", rows_est["py7"])
             elif a4_est_val_f and float(diapason_hz) > 0:
                 base_est_hz = float(basenote_hz) * (a4_est_val_f / float(diapason_hz))
                 rows_est = build_rows_for_base(base_est_hz)
-                add_section(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est["tet"]) 
-                add_section("Pitagorico 12 (stimato)", rows_est["py12"]) 
-                add_section("Pitagorico 7 (stimato)", rows_est["py7"]) 
+                add_section(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est["tet"])
+                add_section("Pitagorico 12 (stimato)", rows_est["py12"])
+                add_section("Pitagorico 7 (stimato)", rows_est["py7"])
 
-            # Larghezze colonne semplici
-            for col_idx in range(1, 5):
-                ws2.column_dimensions[chr(ord('A') + col_idx - 1)].width = 16
+            # Migliora formattazione Diapason: header, bordi, zebra, auto-larghezze
+            header_fill_dia = PatternFill(start_color="FFEEEEEE", end_color="FFEEEEEE", fill_type="solid")
+            thin_side = Side(style="thin", color="FFB0B0B0")
+            thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+            zebra_fill = PatternFill(start_color="FFF9F9F9", end_color="FFF9F9F9", fill_type="solid")
+
+            # Bold per etichette di riepilogo (colonna A) fino alla prima riga vuota
+            r = 1
+            while r <= ws2.max_row:
+                row_cells = list(ws2[r])
+                if all((c.value is None or str(c.value) == "") for c in row_cells):
+                    break
+                # Grassetto su prima colonna per righe con almeno 2 colonne compilate
+                if len(row_cells) >= 2 and row_cells[0].value not in (None, ""):
+                    row_cells[0].font = Font(bold=True)
+                r += 1
+
+            # Helper: trova riga con un determinato header nella prima cella
+            def find_row_with_label(label: str) -> Optional[int]:
+                for rr in range(1, ws2.max_row + 1):
+                    v = ws2.cell(row=rr, column=1).value
+                    if isinstance(v, str) and v.strip() == label:
+                        return rr
+                return None
+
+            # Applica formato tabellare a blocchi: header + zebra + bordi fino alla riga vuota successiva
+            def format_block(header_row: int) -> None:
+                if not header_row:
+                    return
+                # Header styling su tutta la riga usata
+                max_c = ws2.max_column
+                for c in range(1, max_c + 1):
+                    cell = ws2.cell(row=header_row, column=c)
+                    if cell.value not in (None, ""):
+                        cell.font = Font(bold=True)
+                        cell.fill = header_fill_dia
+                        cell.border = thin_border
+                        cell.alignment = Alignment(vertical="center")
+                # Dati fino alla riga vuota
+                rr = header_row + 1
+                stripe = False
+                while rr <= ws2.max_row:
+                    row_vals = [ws2.cell(row=rr, column=cc).value for cc in range(1, max_c + 1)]
+                    if all(v in (None, "") for v in row_vals):
+                        break
+                    stripe = not stripe
+                    for cc in range(1, max_c + 1):
+                        cell = ws2.cell(row=rr, column=cc)
+                        if stripe:
+                            cell.fill = zebra_fill
+                        cell.border = thin_border
+                        cell.alignment = Alignment(vertical="center")
+                    rr += 1
+
+            # Formatta blocchi noti
+            for label in ["F0_Hz", "ClusterCenter_Ratio", "Inferred_Steps", "Comparative_Steps", "Scala_Map", "Scala_Top5", "Scala_Within"]:
+                hr = find_row_with_label(label)
+                if hr:
+                    format_block(hr)
+
+            # Bordi generali per tutte le celle non vuote
+            for rr in range(1, ws2.max_row + 1):
+                for cc in range(1, ws2.max_column + 1):
+                    cell = ws2.cell(row=rr, column=cc)
+                    if cell.value not in (None, ""):
+                        # Assign border unconditionally to avoid StyleProxy hashing issues
+                        cell.border = thin_border
+
+            # Auto-larghezza colonne in base al contenuto (limite max 40)
+            col_max = ws2.max_column
+            for c in range(1, col_max + 1):
+                max_len = 0
+                for rr in range(1, ws2.max_row + 1):
+                    v = ws2.cell(row=rr, column=c).value
+                    if v is None:
+                        continue
+                    s = str(v)
+                    if len(s) > max_len:
+                        max_len = len(s)
+                width = max(10, min(40, int(max_len * 1.2) + 2))
+                ws2.column_dimensions[get_column_letter(c)].width = width
 
             # ---- Esporta anche un file di testo con le stesse informazioni (suffix _diapason.txt) ----
             txt_diap_path = f"{output_base}_diapason.txt"
@@ -1958,7 +2167,63 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                     lines.append("Basenote_12TET (stimato): ")
                 lines.append("")
 
-                # Inferred tuning section in text
+                # Scala match section
+                try:
+                    _sc_info = analysis_result.get('scala_match_info') if isinstance(analysis_result, dict) else None
+                except Exception:
+                    _sc_info = None
+                lines.append("Scala_match:")
+                if _sc_info:
+                    lines.append(f"  name: {_sc_info.get('name','')}")
+                    lines.append(f"  file: {_sc_info.get('file','')}")
+                    try:
+                        lines.append(f"  avg_error_cents: {float(_sc_info.get('avg_cents_error')):.2f}")
+                    except Exception:
+                        lines.append("  avg_error_cents: ")
+                else:
+                    lines.append("  name: ")
+                    lines.append("  file: ")
+                    lines.append("  avg_error_cents: ")
+                lines.append("")
+
+                # Scala top-5 section
+                try:
+                    _sc_top = analysis_result.get('scala_top_matches') if isinstance(analysis_result, dict) else None
+                except Exception:
+                    _sc_top = None
+                lines.append("Scala_top5:")
+                if _sc_top:
+                    for i, item in enumerate(_sc_top[:5], start=1):
+                        try:
+                            nm = item.get('name','')
+                            fl = item.get('file','')
+                            er = float(item.get('avg_cents_error'))
+                            lines.append(f"  {i}. {nm} [{fl}] — {er:.2f} cents")
+                        except Exception:
+                            lines.append(f"  {i}. ")
+                else:
+                    lines.append("  ")
+                lines.append("")
+                # Scala within-threshold section
+                try:
+                    _sc_within = analysis_result.get('scala_within_matches') if isinstance(analysis_result, dict) else None
+                    _sc_thr = analysis_result.get('scala_within_threshold_cents') if isinstance(analysis_result, dict) else None
+                except Exception:
+                    _sc_within, _sc_thr = None, None
+                if _sc_within:
+                    thr_str = (f"{float(_sc_thr):.2f}" if isinstance(_sc_thr, (int,float)) else "")
+                    lines.append(f"Scala_within (<= {thr_str} cents):")
+                    for i, item in enumerate(_sc_within, start=1):
+                        try:
+                            nm = item.get('name','')
+                            fl = item.get('file','')
+                            er = float(item.get('avg_cents_error'))
+                            lines.append(f"  {i}. {nm} [{fl}] — {er:.2f} cents")
+                        except Exception:
+                            lines.append(f"  {i}. ")
+                    lines.append("")
+ 
+                 # Inferred tuning section in text
                 tun_info = analysis_result.get('tuning_inferred') if isinstance(analysis_result, dict) else None
                 steps = analysis_result.get('scale_steps') if isinstance(analysis_result, dict) else None
                 lines.append("Tuning_inferred:")
@@ -2012,6 +2277,59 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                     lines.append("(none)")
                 lines.append("")
 
+                # Comparative tuning section in text
+                comp_info = analysis_result.get('tuning_comparative') if isinstance(analysis_result, dict) else None
+                comp_steps = analysis_result.get('scale_steps_comp') if isinstance(analysis_result, dict) else None
+                lines.append("Tuning_comparative:")
+                if comp_info:
+                    lines.append(f"  name: {comp_info.get('name','')}")
+                    try:
+                        lines.append(f"  avg_error_cents: {float(comp_info.get('avg_cents_error')):.2f}")
+                    except Exception:
+                        lines.append("  avg_error_cents: ")
+                else:
+                    lines.append("  name: ")
+                    lines.append("  avg_error_cents: ")
+                lines.append("")
+                lines.append("Comparative steps (index, Ratio, Hz_from_Base(utente), Hz_from_Base(stimato), Cents, Count):")
+                if comp_steps:
+                    # Determine estimated basenote for comparative steps (independent of inferred block)
+                    base_est_for_steps2 = None
+                    try:
+                        if isinstance(analysis_result, dict) and analysis_result.get('basenote_est_hz'):
+                            base_est_for_steps2 = float(analysis_result.get('basenote_est_hz'))
+                    except Exception:
+                        base_est_for_steps2 = None
+                    if base_est_for_steps2 is None:
+                        try:
+                            a4_est_try2 = float(analysis_result.get('diapason_est')) if isinstance(analysis_result, dict) and analysis_result.get('diapason_est') is not None else None
+                            if a4_est_try2 and float(diapason_hz) > 0:
+                                base_est_for_steps2 = float(basenote_hz) * (a4_est_try2 / float(diapason_hz))
+                        except Exception:
+                            base_est_for_steps2 = None
+                    headers_inf = ["Idx","Ratio","Hz_user","Hz_est","Cents","Count"]
+                    table_inf = []
+                    for (idx_step, ratio_c, cnt) in comp_steps:
+                        try:
+                            hz_user = float(basenote_hz) * float(ratio_c)
+                            hz_est = (float(base_est_for_steps2) * float(ratio_c)) if isinstance(base_est_for_steps2, (int, float)) and base_est_for_steps2 > 0 else None
+                            cents = 1200.0 * math.log2(float(ratio_c))
+                            table_inf.append([str(int(idx_step)), f"{float(ratio_c):.10f}", f"{hz_user:.6f}", (f"{hz_est:.6f}" if isinstance(hz_est, (int, float)) else ""), f"{cents:.2f}", str(int(cnt))])
+                        except Exception:
+                            continue
+                    widths_inf = [len(h) for h in headers_inf]
+                    for row in table_inf:
+                        for i,v in enumerate(row):
+                            widths_inf[i] = max(widths_inf[i], len(v))
+                    def fmt_inf(cols):
+                        return "  ".join(str(cols[i]).ljust(widths_inf[i]) for i in range(len(cols)))
+                    lines.append(fmt_inf(headers_inf))
+                    for row in table_inf:
+                        lines.append(fmt_inf(row))
+                else:
+                    lines.append("(none)")
+                lines.append("")
+
                 def add_block(title: str, rows: list):
                     headers = ["Step", "Ratio", "Hz", "Cents"]
                     safe_rows = rows if isinstance(rows, list) else []
@@ -2030,14 +2348,14 @@ def export_comparison_tables(output_base: str, ratios: List[float], basekey: int
                     lines.append("")
 
                 # Sezioni per utente
-                add_block(f"12-TET (utente A4={float(diapason_hz):.2f} Hz)", rows_user["tet"]) 
-                add_block("Pitagorico 12 (utente)", rows_user["py12"]) 
-                add_block("Pitagorico 7 (utente)", rows_user["py7"]) 
+                add_block(f"12-TET (utente A4={float(diapason_hz):.2f} Hz)", rows_user["tet"])
+                add_block("Pitagorico 12 (utente)", rows_user["py12"])
+                add_block("Pitagorico 7 (utente)", rows_user["py7"])
                 # Sezioni per stimato, se disponibli
                 if isinstance(rows_est, dict):
-                    add_block(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est.get("tet")) 
-                    add_block("Pitagorico 12 (stimato)", rows_est.get("py12")) 
-                    add_block("Pitagorico 7 (stimato)", rows_est.get("py7")) 
+                    add_block(f"12-TET (stimato A4={a4_est_val_f:.2f} Hz)", rows_est.get("tet"))
+                    add_block("Pitagorico 12 (stimato)", rows_est.get("py12"))
+                    add_block("Pitagorico 7 (stimato)", rows_est.get("py7"))
 
                 with open(txt_diap_path, "w", encoding="utf-8") as f_txt:
                     f_txt.write("\n".join(lines) + "\n")
@@ -2060,19 +2378,11 @@ def page_lines(lines: List[str], rows_per_page: Optional[int] = None) -> None:
     """
     # Determine terminal rows
     if rows_per_page is None:
-        try:
-            size = shutil.get_terminal_size(fallback=(80, 24))
-            rows = size.lines - 1
-            cols = size.columns
-        except (OSError, AttributeError, ValueError):
-            rows = 23
-            cols = 80
+        cols, term_rows = _term_size(80, 24)
+        rows = term_rows - 1
     else:
         rows = int(rows_per_page)
-        try:
-            cols = shutil.get_terminal_size(fallback=(80, 24)).columns
-        except Exception:
-            cols = 80
+        cols = _term_cols(80)
 
     # Cap at 80 rows and enforce minimum
     rows = max(5, min(80, rows))
@@ -2106,7 +2416,7 @@ def page_lines(lines: List[str], rows_per_page: Optional[int] = None) -> None:
                     break
             # clear prompt line according to terminal width
             try:
-                print("\r" + (" " * cols) + "\r", end="")
+                _clear_line(cols)
             except Exception:
                 pass
             if ch.lower() == 'q':
@@ -2130,8 +2440,8 @@ def print_step_hz_table(ratios: List[float], basenote_hz: float) -> None:
 
     # Larghezza terminale
     try:
-        term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
-    except (AttributeError, ValueError):
+        term_w = _term_cols(80)
+    except Exception:
         term_w = 80
 
     # Calcola colonne
@@ -2417,12 +2727,628 @@ def convert_excel_to_outputs(excel_path: str,
     return True
 
 
+def infer_tuning_system_general(cluster_centers: List[Tuple[float, int]]):
+    """
+    Inferenza generale del sistema di intonazione a partire dai centroidi dei cluster (ratio, count).
+    Restituisce (tuning_info: Optional[dict], scale_steps: List[Tuple[int, float, int]]).
+    tuning_info: {'name': str, 'avg_cents_error': float, 'params': {...}}
+    scale_steps: lista di tuple (indice_step, ratio in [1,2), count)
+    IT/EN comments included.
+    """
+    try:
+        import math as _math
+    except Exception:  # pragma: no cover
+        _math = math
+    # Converti cluster in cents [0,1200)
+    centers = []  # (cents, count)
+    for item in (cluster_centers or []):
+        try:
+            r, c = item
+            if r and r > 0:
+                cents = 1200.0 * _math.log2(float(r))
+                # riduci in [0,1200)
+                cents = cents % 1200.0
+                centers.append((float(cents), int(c)))
+        except Exception:
+            continue
+    if not centers:
+        return None, []
+
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+
+    def score_candidate(steps_cents: List[float]) -> Tuple[float, List[Tuple[int, float, int]]]:
+        """Valuta una candidata lista di passi (in cents, ridotti in [0,1200)).
+        Ritorna (errore_medio_pesato, mapping) dove mapping = [(idx, ratio, count)]."""
+        if not steps_cents:
+            return float('inf'), []
+        sc = sorted([(s % 1200.0) for s in steps_cents])
+        total_werr = 0.0
+        total_w = 0
+        mapping: List[Tuple[int, float, int]] = []
+        for (ci, cnt) in centers:
+            try:
+                # nearest index in circular metric
+                idx = min(range(len(sc)), key=lambda k: circ_diff(ci, sc[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, sc[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+            # store ratio folded in [1,2)
+            ratio = 2.0 ** ((sc[idx] % 1200.0) / 1200.0)
+            mapping.append((int(idx), float(ratio), int(cnt)))
+        avg = total_werr / float(total_w or 1)
+        return avg, mapping
+
+    best_name = None
+    best_err = float('inf')
+    best_map: List[Tuple[int, float, int]] = []
+    best_params = {}
+
+    # Candidati noti / Known families (for continuity)
+    try:
+        tet12 = [k * (1200.0 / 12.0) for k in range(12)]
+        err, mp = score_candidate(tet12)
+        if err < best_err:
+            best_name, best_err, best_map = "12-TET", err, mp
+            best_params = {"n": 12}
+    except Exception:
+        pass
+    # Pitagorico 12 / Pyth-12
+    try:
+        from fractions import Fraction as _Fr
+        p12_rat = [reduce_to_octave(pow_fraction(_Fr(3, 2), k)) for k in range(12)]
+        p12 = [1200.0 * _math.log2(float(r)) for r in normalize_ratios(p12_rat, reduce_octave=True)]
+        err, mp = score_candidate(p12)
+        if err < best_err:
+            best_name, best_err, best_map = "Pythagorean-12", err, mp
+            best_params = {}
+    except Exception:
+        pass
+    # Pitagorico 7 / Pyth-7
+    try:
+        from fractions import Fraction as _Fr2
+        diat = [_Fr2(1,1), _Fr2(9,8), _Fr2(81,64), _Fr2(4,3), _Fr2(3,2), _Fr2(27,16), _Fr2(243,128)]
+        diat = [reduce_to_octave(r) for r in diat]
+        p7 = sorted([1200.0 * _math.log2(float(r)) for r in diat])
+        err, mp = score_candidate(p7)
+        if err < best_err:
+            best_name, best_err, best_map = "Pythagorean-7", err, mp
+            best_params = {}
+    except Exception:
+        pass
+
+    # n-TET generico / General n-TET (5..72)
+    for n in range(5, 73):
+        try:
+            steps = [k * (1200.0 / float(n)) for k in range(n)]
+            err, mp = score_candidate(steps)
+            if err < best_err:
+                best_name, best_err, best_map = f"{n}-TET", err, mp
+                best_params = {"n": n}
+        except Exception:
+            continue
+
+    # Rank-1 con generatore / Rank-1 generated with free generator
+    periods = [1200.0, 1901.955000865, 2400.0]  # octave, tritave, double octave
+    for P in periods:
+        try:
+            # Limit generator search so steps <= 72 and not too small
+            g_min = max(20.0, P / 72.0)
+            g_max = max(g_min + 1.0, min(1200.0, P / 3.0))
+            step_cents = 1.0  # 1 cent resolution
+            g = g_min
+            while g <= g_max + 1e-9:
+                try:
+                    max_k = int(_math.floor(P / g)) + 1
+                    steps = [(k * g) % 1200.0 for k in range(max(1, max_k))]
+                    # Dedup near-equal cents
+                    steps_u = []
+                    for s in sorted(steps):
+                        if not steps_u or abs(s - steps_u[-1]) > 1e-6:
+                            steps_u.append(s)
+                    err, mp = score_candidate(steps_u)
+                    if err < best_err:
+                        best_name, best_err, best_map = (f"Rank-1 gen={g:.2f}c period={P:.2f}c" if P != 1200.0 else f"Rank-1 gen={g:.2f}c"), err, mp
+                        best_params = {"generator_cents": round(g, 4), "period_cents": round(P, 4)}
+                except Exception:
+                    pass
+                g += step_cents
+        except Exception:
+            continue
+
+    # Prepara output / Prepare output
+    if best_name is None:
+        return None, []
+    # Normalizza: assicurati che esista step indice 0 a ratio 1.0
+    try:
+        has_zero = any(int(s) == 0 for (s, _, __) in best_map)
+    except Exception:
+        has_zero = False
+    steps_out = list(best_map)
+    if has_zero:
+        steps_out = [(0 if int(s)==0 else int(s), (1.0 if int(s)==0 else float(r)), int(c)) for (s,r,c) in steps_out]
+    else:
+        steps_out = [(0, 1.0, 0)] + steps_out
+    steps_out = sorted(steps_out, key=lambda t: (int(t[0]), float(t[1])))
+    info = {"name": best_name, "avg_cents_error": float(best_err), "params": best_params}
+    return info, steps_out
+
+
+def infer_tuning_system_with_comparative(cluster_centers: List[Tuple[float, int]]):
+    """
+    Come infer_tuning_system_general ma ritorna anche una soluzione comparativa
+    di famiglia diversa: (primary_info, primary_steps, comp_info, comp_steps).
+    Famiglie: 'TET', 'Pyth', 'Rank1'.
+    """
+    try:
+        import math as _math
+    except Exception:
+        _math = math
+
+    # Prepara centers in cents [0,1200)
+    centers = []
+    for item in (cluster_centers or []):
+        try:
+            r, c = item
+            if r and r > 0:
+                cents = 1200.0 * _math.log2(float(r))
+                centers.append((float(cents % 1200.0), int(c)))
+        except Exception:
+            continue
+    if not centers:
+        return None, [], None, []
+
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+
+    def score_candidate(steps_cents: List[float]):
+        if not steps_cents:
+            return float('inf'), []
+        sc = sorted([(s % 1200.0) for s in steps_cents])
+        total_werr = 0.0
+        total_w = 0
+        mapping: List[Tuple[int, float, int]] = []
+        for (ci, cnt) in centers:
+            try:
+                idx = min(range(len(sc)), key=lambda k: circ_diff(ci, sc[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, sc[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+            ratio = 2.0 ** ((sc[idx] % 1200.0) / 1200.0)
+            mapping.append((int(idx), float(ratio), int(cnt)))
+        avg = total_werr / float(total_w or 1)
+        return avg, mapping
+
+    def norm_steps_out(map_in: List[Tuple[int, float, int]]):
+        try:
+            has_zero = any(int(s) == 0 for (s, _, __) in map_in)
+        except Exception:
+            has_zero = False
+        steps = list(map_in)
+        if has_zero:
+            steps = [(0 if int(s)==0 else int(s), (1.0 if int(s)==0 else float(r)), int(c)) for (s,r,c) in steps]
+        else:
+            steps = [(0, 1.0, 0)] + steps
+        return sorted(steps, key=lambda t: (int(t[0]), float(t[1])))
+
+    cands = []  # list of dicts with name,family,err,map,params
+
+    # TETs (including 12-TET)
+    for n in range(5, 73):
+        try:
+            steps = [k * (1200.0 / float(n)) for k in range(n)]
+            err, mp = score_candidate(steps)
+            cands.append({"name": f"{n}-TET", "family": "TET", "err": err, "map": mp, "params": {"n": n}})
+        except Exception:
+            pass
+
+    # Pythagorean families
+    try:
+        from fractions import Fraction as _Fr
+        p12_rat = [reduce_to_octave(pow_fraction(_Fr(3, 2), k)) for k in range(12)]
+        p12 = [1200.0 * _math.log2(float(r)) for r in normalize_ratios(p12_rat, reduce_octave=True)]
+        err, mp = score_candidate(p12)
+        cands.append({"name": "Pythagorean-12", "family": "Pyth", "err": err, "map": mp, "params": {}})
+    except Exception:
+        pass
+    try:
+        from fractions import Fraction as _Fr2
+        diat = [_Fr2(1,1), _Fr2(9,8), _Fr2(81,64), _Fr2(4,3), _Fr2(3,2), _Fr2(27,16), _Fr2(243,128)]
+        diat = [reduce_to_octave(r) for r in diat]
+        p7 = sorted([1200.0 * _math.log2(float(r)) for r in diat])
+        err, mp = score_candidate(p7)
+        cands.append({"name": "Pythagorean-7", "family": "Pyth", "err": err, "map": mp, "params": {}})
+    except Exception:
+        pass
+
+    # Rank-1 generated systems (octave, tritave, double octave)
+    periods = [1200.0, 1901.955000865, 2400.0]
+    for P in periods:
+        try:
+            g_min = max(20.0, P / 72.0)
+            g_max = max(g_min + 1.0, min(1200.0, P / 3.0))
+            g = g_min
+            while g <= g_max + 1e-9:
+                try:
+                    max_k = int(_math.floor(P / g)) + 1
+                    steps = [(k * g) % 1200.0 for k in range(max(1, max_k))]
+                    steps_u = []
+                    for s in sorted(steps):
+                        if not steps_u or abs(s - steps_u[-1]) > 1e-6:
+                            steps_u.append(s)
+                    err, mp = score_candidate(steps_u)
+                    name = (f"Rank-1 gen={g:.2f}c period={P:.2f}c" if P != 1200.0 else f"Rank-1 gen={g:.2f}c")
+                    cands.append({"name": name, "family": "Rank1", "err": err, "map": mp, "params": {"generator_cents": round(g, 4), "period_cents": round(P, 4)}})
+                except Exception:
+                    pass
+                g += 1.0
+        except Exception:
+            pass
+
+    if not cands:
+        return None, [], None, []
+
+    # Pick primary and complementary comparative
+    primary = min(cands, key=lambda d: float(d.get("err", float('inf'))))
+    comp = None
+    fam = primary.get("family")
+    # Complementary rule: TET <-> Rank1; Pyth -> TET (fallback: any different family)
+    try:
+        if fam == "TET":
+            pool = [d for d in cands if d.get("family") == "Rank1"]
+        elif fam == "Rank1":
+            pool = [d for d in cands if d.get("family") == "TET"]
+        else:
+            pool = [d for d in cands if d.get("family") == "TET"]
+        if not pool:
+            pool = [d for d in cands if d.get("family") != fam]
+        comp = min(pool, key=lambda d: float(d.get("err", float('inf')))) if pool else None
+    except Exception:
+        comp = None
+
+    prim_info = {"name": primary["name"], "avg_cents_error": float(primary["err"]), "params": primary.get("params", {})}
+    prim_steps = norm_steps_out(primary["map"])
+
+    if comp is not None:
+        comp_info = {"name": comp["name"], "avg_cents_error": float(comp["err"]), "params": comp.get("params", {})}
+        comp_steps = norm_steps_out(comp["map"])
+    else:
+        comp_info, comp_steps = None, []
+
+    return prim_info, prim_steps, comp_info, comp_steps
+
+
+# --- Scala (.scl) parsing and matching utilities ---
+# IT: Parser minimale per file .scl (Scala) e matching con i centroidi.
+# EN: Minimal parser for .scl (Scala) files and matching with cluster centers.
+
+def parse_scl_file(path: str) -> Optional[dict]:
+    """Parsa un file .scl secondo il formato Huygens-Fokker di base.
+    Ritorna un dict: {'name': str, 'degrees_cents': List[float], 'file': str}
+    dove degrees_cents sono ridotti a [0,1200).
+    Se il file non è leggibile/parsabile, ritorna None.
+    """
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+    except Exception:
+        return None
+
+    # Rimuovi commenti e righe vuote; in .scl i commenti iniziano con '!'
+    cleaned: List[str] = []
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            continue
+        # drop lines that start with '!' entirely
+        if s.startswith('!'):
+            # but keep the first comment line as possible filename/description if name missing
+            cleaned.append(s)
+            continue
+        # remove trailing inline comments starting with '!' if any
+        if '!' in s:
+            s = s.split('!', 1)[0].strip()
+        if s:
+            cleaned.append(s)
+
+    if not cleaned:
+        return None
+
+    # The format: optional leading comment lines starting with '!'
+    # Next non-comment line is the description (name). Following line has the number of notes.
+    idx = 0
+    # Skip leading comments for description, but remember them if needed
+    while idx < len(cleaned) and cleaned[idx].startswith('!'):
+        idx += 1
+    if idx >= len(cleaned):
+        return None
+    name_line = cleaned[idx]
+    idx += 1
+    # Some files may keep description empty; fallback to filename later
+    desc = name_line.strip()
+
+    # Read number of notes
+    if idx >= len(cleaned):
+        return None
+    try:
+        n_deg = int(str(cleaned[idx]).strip().split()[0])
+    except Exception:
+        return None
+    idx += 1
+
+    degrees_cents: List[float] = []
+    # Read next n_deg lines as degrees (can include comments after value that we already stripped)
+    for _ in range(n_deg):
+        if idx >= len(cleaned):
+            break
+        val = cleaned[idx].strip()
+        idx += 1
+        if not val:
+            continue
+        token = val.split()[0]
+        cents_val: Optional[float] = None
+        # ratio like 3/2 or 1.5/1.0 is allowed
+        if '/' in token:
+            try:
+                num_str, den_str = token.split('/', 1)
+                num = float(Fraction(num_str.strip()))
+                den = float(Fraction(den_str.strip()))
+                r = num / den if den != 0 else None
+                if r and r > 0:
+                    cents_val = 1200.0 * math.log2(float(r))
+            except Exception:
+                cents_val = None
+        else:
+            # plain number in cents
+            try:
+                cents_val = float(token)
+            except Exception:
+                cents_val = None
+        if isinstance(cents_val, (int, float)) and math.isfinite(cents_val):
+            # Reduce to [0,1200)
+            c = float(cents_val) % 1200.0
+            degrees_cents.append(c)
+    if not degrees_cents:
+        return None
+
+    # Ensure unique sorted degrees
+    degrees_sorted: List[float] = []
+    for c in sorted(degrees_cents):
+        if not degrees_sorted or abs(c - degrees_sorted[-1]) > 1e-6:
+            degrees_sorted.append(c)
+
+    return {
+        'name': desc if desc else os.path.basename(path),
+        'degrees_cents': degrees_sorted,
+        'file': os.path.basename(path),
+    }
+
+
+def load_scales_from_dir(dir_path: str = 'scl') -> List[dict]:
+    """Carica tutti i file .scl leggibili dalla directory indicata.
+    Ritorna una lista di dict come parse_scl_file.
+    """
+    try:
+        if not os.path.isdir(dir_path):
+            return []
+    except Exception:
+        return []
+    out: List[dict] = []
+    try:
+        for fn in os.listdir(dir_path):
+            if not fn.lower().endswith('.scl'):
+                continue
+            fp = os.path.join(dir_path, fn)
+            info = parse_scl_file(fp)
+            if info and isinstance(info.get('degrees_cents'), list) and info['degrees_cents']:
+                out.append(info)
+    except Exception:
+        return out
+    return out
+
+
+def match_scala_scales(cluster_centers: List[Tuple[float, int]], dir_path: str = 'scl') -> Tuple[Optional[dict], List[Tuple[int,float,int]]]:
+    """Trova la scala .scl più vicina ai centroidi (ratio,count).
+    - Converte i centroidi in cents [0,1200) e per ciascuno trova il grado più vicino della scala
+      usando distanza circolare modulo 1200.
+    - Ritorna (best_info, steps_map) dove best_info include 'name','file','avg_cents_error'.
+    - steps_map: [(index, ratio_from_degree, count)].
+    Se nessuna scala è disponibile, ritorna (None, []).
+    """
+    scales = load_scales_from_dir(dir_path)
+    if not scales:
+        return None, []
+
+    # Prepare centers in cents
+    centers_c = []  # (cents, count)
+    for item in (cluster_centers or []):
+        try:
+            r, cnt = item
+            if r and r > 0:
+                c = (1200.0 * math.log2(float(r))) % 1200.0
+                centers_c.append((float(c), int(cnt)))
+        except Exception:
+            continue
+    if not centers_c:
+        return None, []
+
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+
+    best = None  # tuple(err, scale_info, mapping)
+    for sc in scales:
+        degs = sc.get('degrees_cents') or []
+        if not degs:
+            continue
+        total_werr = 0.0
+        total_w = 0
+        mapping: List[Tuple[int,float,int]] = []
+        for (ci, cnt) in centers_c:
+            try:
+                idx = min(range(len(degs)), key=lambda k: circ_diff(ci, degs[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, degs[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+            ratio = 2.0 ** ((float(degs[idx]) % 1200.0) / 1200.0)
+            mapping.append((int(idx), float(ratio), int(cnt)))
+        if total_w == 0:
+            continue
+        avg = total_werr / float(total_w)
+        if best is None or avg < best[0]:
+            best = (avg, sc, mapping)
+
+    if best is None:
+        return None, []
+
+    err, sc, mapping = best
+    info = {'name': sc.get('name', ''), 'file': sc.get('file', ''), 'avg_cents_error': float(err)}
+    # Normalize mapping to ensure index 0 & ratio 1.0 present
+    try:
+        has_zero = any(int(s) == 0 for (s, _, __) in mapping)
+    except Exception:
+        has_zero = False
+    steps = list(mapping)
+    if has_zero:
+        steps = [(0 if int(s)==0 else int(s), (1.0 if int(s)==0 else float(r)), int(c)) for (s,r,c) in steps]
+    else:
+        steps = [(0, 1.0, 0)] + steps
+    steps = sorted(steps, key=lambda t: (int(t[0]), float(t[1])))
+    return info, steps
+
+
+def match_scala_scales_topk(cluster_centers: List[Tuple[float, int]], dir_path: str = 'scl', k: int = 5) -> List[Tuple[dict, List[Tuple[int,float,int]]]]:
+    """Ritorna le migliori k scale .scl per i centroidi dati.
+    Output: lista di (info_dict, steps_map) ordinata per errore crescente.
+    Mantiene la stessa logica di punteggio di match_scala_scales.
+    """
+    scales = load_scales_from_dir(dir_path)
+    if not scales:
+        return []
+    # Prepara centers in cents
+    centers_c = []  # (cents, count)
+    for item in (cluster_centers or []):
+        try:
+            r, cnt = item
+            if r and r > 0:
+                c = (1200.0 * math.log2(float(r))) % 1200.0
+                centers_c.append((float(c), int(cnt)))
+        except Exception:
+            continue
+    if not centers_c:
+        return []
+
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+
+    scored: List[Tuple[float, dict, List[Tuple[int,float,int]]]] = []
+    for sc in scales:
+        degs = sc.get('degrees_cents') or []
+        if not degs:
+            continue
+        total_werr = 0.0
+        total_w = 0
+        mapping: List[Tuple[int,float,int]] = []
+        for (ci, cnt) in centers_c:
+            try:
+                idx = min(range(len(degs)), key=lambda k: circ_diff(ci, degs[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, degs[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+            ratio = 2.0 ** ((float(degs[idx]) % 1200.0) / 1200.0)
+            mapping.append((int(idx), float(ratio), int(cnt)))
+        if total_w == 0:
+            continue
+        avg = total_werr / float(total_w)
+        info = {'name': sc.get('name', ''), 'file': sc.get('file', ''), 'avg_cents_error': float(avg)}
+        # Normalize mapping to ensure index 0 & ratio 1.0 present
+        try:
+            has_zero = any(int(s) == 0 for (s, _, __) in mapping)
+        except Exception:
+            has_zero = False
+        steps = list(mapping)
+        if has_zero:
+            steps = [(0 if int(s)==0 else int(s), (1.0 if int(s)==0 else float(r)), int(c)) for (s,r,c) in steps]
+        else:
+            steps = [(0, 1.0, 0)] + steps
+        steps = sorted(steps, key=lambda t: (int(t[0]), float(t[1])))
+        scored.append((float(avg), info, steps))
+
+    scored.sort(key=lambda x: float(x[0]))
+    top = scored[:max(0, int(k))] if scored else []
+    return [(info, steps) for (_err, info, steps) in top]
+
+
+def match_scala_scales_within_threshold(cluster_centers: List[Tuple[float, int]], dir_path: str = 'scl', threshold_cents: float = 0.0) -> List[dict]:
+    """Restituisce tutte le scale .scl con errore medio <= threshold_cents.
+    Output: lista di dict {'name','file','avg_cents_error'} ordinata per errore crescente.
+    """
+    try:
+        thr = float(threshold_cents)
+    except Exception:
+        return []
+    if not math.isfinite(thr) or thr < 0:
+        return []
+    # Riutilizza il punteggio come in topk
+    scales = load_scales_from_dir(dir_path)
+    if not scales:
+        return []
+    centers_c = []
+    for item in (cluster_centers or []):
+        try:
+            r, cnt = item
+            if r and r > 0:
+                c = (1200.0 * math.log2(float(r))) % 1200.0
+                centers_c.append((float(c), int(cnt)))
+        except Exception:
+            continue
+    if not centers_c:
+        return []
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+    scored: List[Tuple[float, dict]] = []
+    for sc in scales:
+        degs = sc.get('degrees_cents') or []
+        if not degs:
+            continue
+        total_werr = 0.0
+        total_w = 0
+        for (ci, cnt) in centers_c:
+            try:
+                idx = min(range(len(degs)), key=lambda k: circ_diff(ci, degs[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, degs[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+        if total_w == 0:
+            continue
+        avg = total_werr / float(total_w)
+        if avg <= thr:
+            scored.append((float(avg), {'name': sc.get('name',''), 'file': sc.get('file',''), 'avg_cents_error': float(avg)}))
+    scored.sort(key=lambda x: float(x[0]))
+    return [info for (_err, info) in scored]
+
+
 def estimate_diapason_and_ratios(audio_path: str,
                                    base_hint_hz: float,
                                    initial_a4_hz: float = 440.0,
                                    frame_size: int = 1024,
                                    hop_size: int = 512,
-                                   use_hq: bool = False) -> Optional[dict]:
+                                   use_hq: bool = False,
+                                   scala_cent: Optional[float] = None) -> Optional[dict]:
     """Stima il diapason (A4) e raggruppa i rapporti dai tracciati F0.
     - Non assume 12-TET o dizionari storici.
     - Usa YIN/pYIN per estrarre un vettore F0, poi ripiega le frequenze nell'intorno dell'A4.
@@ -2560,87 +3486,14 @@ def estimate_diapason_and_ratios(audio_path: str,
     else:
         centers = []
 
-    # Infer tuning system by matching cluster centers to candidate systems
-    def cents_between(a: float, b: float) -> float:
-        try:
-            return abs(1200.0 * math.log2(float(a) / float(b)))
-        except Exception:
-            return 1e9
-
-    # Build candidate systems within [1,2)
-    def cand_tet12() -> list:
-        return [2.0 ** (k / 12.0) for k in range(12)]
-
-    def cand_pyth12() -> list:
-        try:
-            from fractions import Fraction as _Fr
-            lst = [reduce_to_octave(pow_fraction(_Fr(3, 2), k)) for k in range(12)]
-            return normalize_ratios(lst, reduce_octave=True)
-        except Exception:
-            return normalize_ratios([(1.5 ** k) for k in range(12)], reduce_octave=True)
-
-    def cand_pyth7() -> list:
-        try:
-            from fractions import Fraction as _Fr
-            diat = [_Fr(1,1), _Fr(9,8), _Fr(81,64), _Fr(4,3), _Fr(3,2), _Fr(27,16), _Fr(243,128)]
-            diat = [reduce_to_octave(r) for r in diat]
-            return sorted([float(r) for r in diat])
-        except Exception:
-            return sorted([1.0, 9/8, 81/64, 4/3, 3/2, 27/16, 243/128])
-
-    candidates = [
-        ("12-TET", cand_tet12()),
-        ("Pythagorean-12", cand_pyth12()),
-        ("Pythagorean-7", cand_pyth7()),
-    ]
-
-    best = (None, float('inf'), [])  # (name, score, mapping)
-    for name, ratios_sys in candidates:
-        if not ratios_sys:
-            continue
-        # For each cluster center, find nearest system step
-        total = 0.0
-        mapping = []  # list of (step_idx, center_ratio, count)
-        for (center, count) in centers:
-            # nearest index
-            try:
-                idx = min(range(len(ratios_sys)), key=lambda k: cents_between(center, ratios_sys[k]))
-            except ValueError:
-                continue
-            err = cents_between(center, ratios_sys[idx])
-            total += (err * max(1, int(count)))
-            mapping.append((idx, float(center), int(count)))
-        # Normalize by total counts to get average error
-        total_counts = sum(c for (_, _, c) in mapping) or 1
-        score = total / float(total_counts)
-        if score < best[1]:
-            best = (name, score, mapping)
-
-    tuning_info = None
-    scale_steps = []
-    if best[0] is not None:
-        # Sort mapping by step index then by ratio
-        scale_steps = sorted(best[2], key=lambda t: (t[0], t[1]))
-        tuning_info = {"name": best[0], "avg_cents_error": float(best[1])}
-        # Ensure first step is ratio 1.0 (anchor to basenote)
-        try:
-            has_zero = any(int(s) == 0 for (s, _, __) in scale_steps)
-        except Exception:
-            has_zero = False
-        if has_zero:
-            # normalize index 0 ratio to exactly 1.0, preserve count
-            new_steps = []
-            for (sidx, rc, cnt) in scale_steps:
-                if int(sidx) == 0:
-                    new_steps.append((0, 1.0, int(cnt)))
-                else:
-                    new_steps.append((sidx, rc, cnt))
-            scale_steps = new_steps
-        else:
-            # prepend missing base step with count=0
-            scale_steps = [(0, 1.0, 0)] + scale_steps
-        # keep steps sorted
-        scale_steps = sorted(scale_steps, key=lambda t: (t[0], t[1]))
+    # Infer tuning system using comparative fitter (primary + alternative)
+    prim_info, prim_steps, comp_info, comp_steps = infer_tuning_system_with_comparative(centers)
+    tuning_info, scale_steps = prim_info, prim_steps
+    tuning_comp, scale_steps_comp = comp_info, comp_steps
+    if tuning_info is None:
+        # Fallback: no inference possible
+        tuning_info, scale_steps = None, []
+    # Comparative may be None/[]
 
     # Stima basenote: classe 12-TET più frequente dai F0 (rispetto ad A4 stimato)
     bn_midi = None
@@ -2677,6 +3530,28 @@ def estimate_diapason_and_ratios(audio_path: str,
     except Exception:
         pass
 
+    # Scala (.scl) best-match from 'scl' directory based on ratio cluster centers
+    try:
+        scala_info, scala_steps = match_scala_scales(centers, dir_path='scl')
+    except Exception:
+        scala_info, scala_steps = (None, [])
+    # Also compute top-5 Scala matches
+    try:
+        _topk = match_scala_scales_topk(centers, dir_path='scl', k=5)
+        scala_top_matches = [{'name': info.get('name',''), 'file': info.get('file',''), 'avg_cents_error': float(info.get('avg_cents_error', 0.0))} for (info, _steps) in _topk]
+    except Exception:
+        scala_top_matches = []
+    # Optionally compute all matches within threshold cents
+    scala_within_matches = []
+    scala_within_threshold = None
+    try:
+        if isinstance(scala_cent, (int, float)) and math.isfinite(scala_cent) and float(scala_cent) >= 0:
+            scala_within_matches = match_scala_scales_within_threshold(centers, dir_path='scl', threshold_cents=float(scala_cent))
+            scala_within_threshold = float(scala_cent)
+    except Exception:
+        scala_within_matches = []
+        scala_within_threshold = None
+
     return {
         'diapason_est': a4_est,
         'f0_list': f0_list,
@@ -2685,9 +3560,17 @@ def estimate_diapason_and_ratios(audio_path: str,
         'base_hint_hz': base,
         'tuning_inferred': tuning_info,
         'scale_steps': scale_steps,
+        'tuning_comparative': tuning_comp,
+        'scale_steps_comp': scale_steps_comp,
         'basenote_est_hz': bn_hz,
         'basenote_est_midi': bn_midi,
         'basenote_est_name_12tet': bn_name,
+        # Scala match results
+        'scala_match_info': scala_info,
+        'scala_match_steps': scala_steps,
+        'scala_top_matches': scala_top_matches,
+        'scala_within_matches': scala_within_matches,
+        'scala_within_threshold_cents': scala_within_threshold,
     }
 
 
@@ -2994,7 +3877,7 @@ def main():
     class ThinHelpFormatter(argparse.RawTextHelpFormatter):
         def __init__(self, prog: str):
             try:
-                cols = shutil.get_terminal_size(fallback=(100, 24)).columns
+                cols = _term_cols(100)
             except Exception:
                 cols = 100
             cols = max(70, min(140, int(cols)))
@@ -3137,6 +4020,8 @@ def main():
                         help=("Se usato con --audio-file: stima il diapason (A4) dall'audio e tenta l'individuazione del sistema (ratios); risultati in un foglio Excel dedicato. / If used with --audio-file: estimates diapason (A4) from audio and attempts to infer the system (ratios); results exported to a dedicated Excel sheet."))
     grp_audio.add_argument("--render", action="store_true",
                         help=("Se usato con --audio-file: esporta un WAV di sinusoidi controllate in frequenza per feedback uditivo dell'analisi. / If used with --audio-file: exports a WAV of frequency-controlled sinusoids for auditory feedback of the analysis."))
+    grp_audio.add_argument("--scala-cent", type=float, default=None,
+                        help=("Se impostato: elenca tutte le scale .scl con errore medio <= soglia (cents). / If set: list all .scl scales with avg error <= threshold (cents)."))
 
     # Output
     grp_out.add_argument("output_file", nargs="?", default=None,
@@ -3306,7 +4191,7 @@ def main():
         base_msg_plain = L("Analisi audio in corso", "Audio analysis in progress")
         base_msg = f"{Style.FG_CYAN}{Style.BOLD}{base_msg_plain}{Style.RESET}" if _supports_ansi() else base_msg_plain
         try:
-            cols = shutil.get_terminal_size(fallback=(80, 24)).columns
+            cols = _term_cols(80)
         except Exception:
             cols = 80
         _stop_evt = threading.Event()
@@ -3365,7 +4250,7 @@ def main():
                 pass
             # clear spinner line
             try:
-                print("\r" + (" " * cols) + "\r", end="")
+                _clear_line(cols)
             except Exception:
                 pass
             print("")  # newline after spinner
@@ -3388,6 +4273,7 @@ def main():
                     frame_size=args.frame_size,
                     hop_size=args.hop_size,
                     use_hq=getattr(args, 'hq', False),
+                    scala_cent=getattr(args, 'scala_cent', None),
                 )
                 if est:
                     if analysis_data is None:
@@ -3415,6 +4301,80 @@ def main():
                             it_line = f"Basenote suggerita dall'analisi: {bn_name or ''} (MIDI {bn_midi}) {hz_txt}".strip()
                             en_line = f"Suggested basenote from analysis: {bn_name or ''} (MIDI {bn_midi}) {hz_txt}".strip()
                             print(L(it_line, en_line))
+                        # Print matched Scala scale if available
+                        try:
+                            _sc_info = est.get('scala_match_info') if isinstance(est, dict) else None
+                        except Exception:
+                            _sc_info = None
+                        if _sc_info:
+                            it_line2 = f"Scala corrispondente (scl):\n {_sc_info.get('name','')} [{_sc_info.get('file','')}] – err medio: {float(_sc_info.get('avg_cents_error', 0.0)):.2f} cents"
+                            en_line2 = f"Matched Scala scale:\n {_sc_info.get('name','')} [{_sc_info.get('file','')}] – avg err: {float(_sc_info.get('avg_cents_error', 0.0)):.2f} cents"
+                            print(L(it_line2, en_line2))
+                            # Print Top-5 Scala matches
+                            try:
+                                _sc_top = est.get('scala_top_matches') if isinstance(est, dict) else None
+                            except Exception:
+                                _sc_top = None
+                            if _sc_top:
+                                # Build aligned table for top-5 (console)
+                                rows = []
+                                for i, item in enumerate(_sc_top[:5], start=1):
+                                    try:
+                                        nm = str(item.get('name',''))
+                                        fl = str(item.get('file',''))
+                                        er = f"{float(item.get('avg_cents_error', 0.0)):.2f}"
+                                    except Exception:
+                                        nm, fl, er = "", "", ""
+                                    rows.append([str(i), nm, fl, er])
+                                hdr = [L("Pos", "Rank"), L("Nome", "Name"), "File", L("Err (c)", "Err (c)")]
+                                widths = [len(hdr[c]) for c in range(len(hdr))]
+                                for r in rows:
+                                    for c, val in enumerate(r):
+                                        if len(val) > widths[c]:
+                                            widths[c] = len(val)
+                                def fmt(cols):
+                                    return "  ".join(str(cols[i]).ljust(widths[i]) for i in range(len(cols)))
+                                title = L("Top 5 corrispondenze Scala (.scl):", "Top 5 Scala matches (.scl):")
+                                print(title)
+                                if _supports_ansi():
+                                    print(Style.BOLD + fmt(hdr) + Style.RESET)
+                                else:
+                                    print(fmt(hdr))
+                                for r in rows:
+                                    print(fmt(r))
+                                # Print within-threshold Scala matches if requested
+                                try:
+                                    _sc_within = est.get('scala_within_matches') if isinstance(est, dict) else None
+                                    _sc_thr = est.get('scala_within_threshold_cents') if isinstance(est, dict) else None
+                                except Exception:
+                                    _sc_within, _sc_thr = None, None
+                                if _sc_within:
+                                    rows2 = []
+                                    for i, item in enumerate(_sc_within, start=1):
+                                        try:
+                                            nm = str(item.get('name',''))
+                                            fl = str(item.get('file',''))
+                                            er = f"{float(item.get('avg_cents_error', 0.0)):.2f}"
+                                        except Exception:
+                                            nm, fl, er = "", "", ""
+                                        rows2.append([str(i), nm, fl, er])
+                                    hdr2 = [L("Pos", "Rank"), L("Nome", "Name"), "File", L("Err (c)", "Err (c)")]
+                                    widths2 = [len(hdr2[c]) for c in range(len(hdr2))]
+                                    for r2 in rows2:
+                                        for c, val in enumerate(r2):
+                                            if len(val) > widths2[c]:
+                                                widths2[c] = len(val)
+                                    def fmt2(cols):
+                                        return "  ".join(str(cols[i]).ljust(widths2[i]) for i in range(len(cols)))
+                                    thr_str = (f"{float(_sc_thr):.2f}" if isinstance(_sc_thr, (int,float)) else "")
+                                    title2 = L(f"Scala entro <= {thr_str} cents (\u2211={len(rows2)})", f"Scales within <= {thr_str} cents (N={len(rows2)})")
+                                    print(title2)
+                                    if _supports_ansi():
+                                        print(Style.BOLD + fmt2(hdr2) + Style.RESET)
+                                    else:
+                                        print(fmt2(hdr2))
+                                    for r2 in rows2:
+                                        print(fmt2(r2))
     else:
         _noaud = L("Nessuna analisi audio: genero subito le tabelle di confronto.",
                    "No audio analysis: generating comparison tables immediately.")
@@ -3464,3 +4424,204 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# --- Scala (.scl) parsing and matching utilities ---
+# IT: Parser minimale per file .scl (Scala) e matching con i centroidi.
+# EN: Minimal parser for .scl (Scala) files and matching with cluster centers.
+
+def parse_scl_file(path: str) -> Optional[dict]:
+    """Parsa un file .scl secondo il formato Huygens-Fokker di base.
+    Ritorna un dict: {'name': str, 'degrees_cents': List[float], 'file': str}
+    dove degrees_cents sono ridotti a [0,1200).
+    Se il file non è leggibile/parsabile, ritorna None.
+    """
+    try:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as f:
+            lines = f.readlines()
+    except Exception:
+        return None
+
+    # Rimuovi commenti e righe vuote; in .scl i commenti iniziano con '!'
+    cleaned: List[str] = []
+    for ln in lines:
+        s = ln.strip()
+        if not s:
+            continue
+        # drop lines that start with '!' entirely
+        if s.startswith('!'):
+            # but keep the first comment line as possible filename/description if name missing
+            cleaned.append(s)
+            continue
+        # remove trailing inline comments starting with '!' if any
+        if '!' in s:
+            s = s.split('!', 1)[0].strip()
+        if s:
+            cleaned.append(s)
+
+    if not cleaned:
+        return None
+
+    # The format: optional leading comment lines starting with '!'
+    # Next non-comment line is the description (name). Following line has the number of notes.
+    idx = 0
+    # Skip leading comments for description, but remember them if needed
+    while idx < len(cleaned) and cleaned[idx].startswith('!'):
+        idx += 1
+    if idx >= len(cleaned):
+        return None
+    name_line = cleaned[idx]
+    idx += 1
+    # Some files may keep description empty; fallback to filename later
+    desc = name_line.strip()
+
+    # Read number of notes
+    if idx >= len(cleaned):
+        return None
+    try:
+        n_deg = int(str(cleaned[idx]).strip().split()[0])
+    except Exception:
+        return None
+    idx += 1
+
+    degrees_cents: List[float] = []
+    # Read next n_deg lines as degrees (can include comments after value that we already stripped)
+    for _ in range(n_deg):
+        if idx >= len(cleaned):
+            break
+        val = cleaned[idx].strip()
+        idx += 1
+        if not val:
+            continue
+        token = val.split()[0]
+        cents_val: Optional[float] = None
+        # ratio like 3/2 or 1.5/1.0 is allowed
+        if '/' in token:
+            try:
+                num_str, den_str = token.split('/', 1)
+                num = float(Fraction(num_str.strip()))
+                den = float(Fraction(den_str.strip()))
+                r = num / den if den != 0 else None
+                if r and r > 0:
+                    cents_val = 1200.0 * math.log2(float(r))
+            except Exception:
+                cents_val = None
+        else:
+            # plain number in cents
+            try:
+                cents_val = float(token)
+            except Exception:
+                cents_val = None
+        if isinstance(cents_val, (int, float)) and math.isfinite(cents_val):
+            # Reduce to [0,1200)
+            c = float(cents_val) % 1200.0
+            degrees_cents.append(c)
+    if not degrees_cents:
+        return None
+
+    # Ensure unique sorted degrees
+    degrees_sorted: List[float] = []
+    for c in sorted(degrees_cents):
+        if not degrees_sorted or abs(c - degrees_sorted[-1]) > 1e-6:
+            degrees_sorted.append(c)
+
+    return {
+        'name': desc if desc else os.path.basename(path),
+        'degrees_cents': degrees_sorted,
+        'file': os.path.basename(path),
+    }
+
+
+def load_scales_from_dir(dir_path: str = 'scl') -> List[dict]:
+    """Carica tutti i file .scl leggibili dalla directory indicata.
+    Ritorna una lista di dict come parse_scl_file.
+    """
+    try:
+        if not os.path.isdir(dir_path):
+            return []
+    except Exception:
+        return []
+    out: List[dict] = []
+    try:
+        for fn in os.listdir(dir_path):
+            if not fn.lower().endswith('.scl'):
+                continue
+            fp = os.path.join(dir_path, fn)
+            info = parse_scl_file(fp)
+            if info and isinstance(info.get('degrees_cents'), list) and info['degrees_cents']:
+                out.append(info)
+    except Exception:
+        return out
+    return out
+
+
+def match_scala_scales(cluster_centers: List[Tuple[float, int]], dir_path: str = 'scl') -> Tuple[Optional[dict], List[Tuple[int,float,int]]]:
+    """Trova la scala .scl più vicina ai centroidi (ratio,count).
+    - Converte i centroidi in cents [0,1200) e per ciascuno trova il grado più vicino della scala
+      usando distanza circolare modulo 1200.
+    - Ritorna (best_info, steps_map) dove best_info include 'name','file','avg_cents_error'.
+    - steps_map: [(index, ratio_from_degree, count)].
+    Se nessuna scala è disponibile, ritorna (None, []).
+    """
+    scales = load_scales_from_dir(dir_path)
+    if not scales:
+        return None, []
+
+    # Prepare centers in cents
+    centers_c = []  # (cents, count)
+    for item in (cluster_centers or []):
+        try:
+            r, cnt = item
+            if r and r > 0:
+                c = (1200.0 * math.log2(float(r))) % 1200.0
+                centers_c.append((float(c), int(cnt)))
+        except Exception:
+            continue
+    if not centers_c:
+        return None, []
+
+    def circ_diff(a: float, b: float, mod: float = 1200.0) -> float:
+        d = abs(float(a) - float(b)) % mod
+        return d if d <= (mod * 0.5) else (mod - d)
+
+    best = None  # tuple(err, scale_info, mapping)
+    for sc in scales:
+        degs = sc.get('degrees_cents') or []
+        if not degs:
+            continue
+        total_werr = 0.0
+        total_w = 0
+        mapping: List[Tuple[int,float,int]] = []
+        for (ci, cnt) in centers_c:
+            try:
+                idx = min(range(len(degs)), key=lambda k: circ_diff(ci, degs[k], 1200.0))
+            except ValueError:
+                continue
+            err = circ_diff(ci, degs[idx], 1200.0)
+            total_werr += float(err) * max(1, int(cnt))
+            total_w += max(1, int(cnt))
+            ratio = 2.0 ** ((float(degs[idx]) % 1200.0) / 1200.0)
+            mapping.append((int(idx), float(ratio), int(cnt)))
+        if total_w == 0:
+            continue
+        avg = total_werr / float(total_w)
+        if best is None or avg < best[0]:
+            best = (avg, sc, mapping)
+
+    if best is None:
+        return None, []
+
+    err, sc, mapping = best
+    info = {'name': sc.get('name', ''), 'file': sc.get('file', ''), 'avg_cents_error': float(err)}
+    # Normalize mapping to ensure index 0 & ratio 1.0 present
+    try:
+        has_zero = any(int(s) == 0 for (s, _, __) in mapping)
+    except Exception:
+        has_zero = False
+    steps = list(mapping)
+    if has_zero:
+        steps = [(0 if int(s)==0 else int(s), (1.0 if int(s)==0 else float(r)), int(c)) for (s,r,c) in steps]
+    else:
+        steps = [(0, 1.0, 0)] + steps
+    steps = sorted(steps, key=lambda t: (int(t[0]), float(t[1])))
+    return info, steps

@@ -18,6 +18,10 @@ Caratteristiche principali:
 - Analisi audio opzionale (F0 e formanti) tramite `librosa`, con indicatore di avanzamento a schermo;
 - Grafico PNG diapason (con `--diapason-analysis`), richiede `matplotlib`;
 - Render audio opzionale dei risultati di analisi (`--render`): WAV del tracking F0 e sinusoide A4 stimata (30s).
+- Integrazione con archivi Scala (.scl): riconoscimento scala migliore, Top‑5 a schermo/Excel/testo e filtro per soglia con `--scala-cent` (elenchi entro X cents); inclusi nel foglio Excel “Diapason” (Scala_Map, Scala_Top5, Scala_Within).
+  Nota: è necessario scaricare l'archivio ufficiale delle scale da https://www.huygens-fokker.org/docs/scales.zip e scompattare la cartella `scl/` nella stessa cartella dove si trova `thin.py`.
+- Inferenza del sistema con confronto complementare: oltre al sistema primario, propone un sistema di famiglia diversa (regola: TET ↔ Rank‑1; Pyth → TET) per confronto.
+- Migliorie di formattazione nel foglio “Diapason” (Excel): header, zebra striping, bordi, auto‑larghezze per migliore leggibilità.
 
 Requisiti opzionali:
 - Excel: `pip install openpyxl`
@@ -72,9 +76,13 @@ Key features:
 - System and comparison tables in `.txt` and, if `openpyxl` is installed, `.xlsx`;
 - Comparison against TET (12/24/48), harmonic and subharmonic series;
 - Optional `.tun` (AnaMark TUN) export;
-- Optional audio analysis (F0 & formants) via `librosa`, with on-screen dot progress;
+- Optional audio analysis (F0 & formants) via `librosa`, with on-screen progress;
 - Diapason PNG plot (with `--diapason-analysis`), requires `matplotlib`;
 - Optional audio rendering of analysis results (`--render`): WAV of F0 tracking and 30s estimated A4 sine.
+- Scala (.scl) integration: best match recognition, Top‑5 shown in console/Excel/text, and threshold listing via `--scala-cent` (all scales within X cents); included in the Excel “Diapason” sheet (Scala_Map, Scala_Top5, Scala_Within).
+  Note: you must download the official scales archive from https://www.huygens-fokker.org/docs/scales.zip and unzip the `scl/` folder into the same directory as `thin.py`.
+- Comparative tuning inference: besides the primary fit, a complementary system from a different family is suggested (rule: TET ↔ Rank‑1; Pyth → TET) for cross‑checking.
+- Improved “Diapason” sheet formatting (Excel): headers, zebra striping, cell borders, auto column widths for better readability.
 
 Optional requirements:
 - Excel: `pip install openpyxl`
