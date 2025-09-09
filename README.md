@@ -14,7 +14,7 @@ Caratteristiche principali:
 - Generazione di tabelle `cpstun` (GEN -2) in file `.csd` per Csound;
 - Tabelle del sistema e di confronto in `.txt` e, se presente `openpyxl`, anche in `.xlsx`;
 - Confronto con TET (12/24/48), serie armonica e subarmonica;
-- Export opzionale di file `.tun` (AnaMark TUN);
+- Export opzionale di file `.tun` (AnaMark TUN) con diapason configurabile e [exact tuning] (adattamento della frequenza di base del formato .tun);
 - Analisi audio opzionale (F0 e formanti) tramite `librosa`, con indicatore di avanzamento a schermo;
 - Grafico PNG diapason (con `--diapason-analysis`), richiede `matplotlib`;
 - Render audio opzionale dei risultati di analisi (`--render`): WAV del tracking F0 e sinusoide A4 stimata (30s).
@@ -34,8 +34,8 @@ Uso rapido:
 # default 12-TET su ottava, genera out.csd, out_system.*, out_compare.*
 python3 thin.py out
 
-# esporta anche .tun (AnaMark)
-python3 thin.py --export-tun out
+# esporta anche .tun (AnaMark), rispettando il diapason (`--diapason`, default 440 Hz) con [exact tuning]
+python3 thin.py --diapason 442 --export-tun out
 
 # analisi audio (LPC) su file voce
 python3 thin.py --audio-file voce.wav --analysis lpc out_voice
@@ -75,7 +75,7 @@ Key features:
 - Create `cpstun` (GEN -2) tables in `.csd` files for Csound;
 - System and comparison tables in `.txt` and, if `openpyxl` is installed, `.xlsx`;
 - Comparison against TET (12/24/48), harmonic and subharmonic series;
-- Optional `.tun` (AnaMark TUN) export;
+- Optional `.tun` (AnaMark TUN) export with configurable diapason and [exact tuning] support (adapts the .tun base frequency to the selected reference);
 - Optional audio analysis (F0 & formants) via `librosa`, with on-screen progress;
 - Diapason PNG plot (with `--diapason-analysis`), requires `matplotlib`;
 - Optional audio rendering of analysis results (`--render`): WAV of F0 tracking and 30s estimated A4 sine.
@@ -95,8 +95,8 @@ Quick start:
 # default 12-TET on octave; produces out.csd, out_system.*, out_compare.*
 python3 thin.py out
 
-# also export .tun
-python3 thin.py --export-tun out
+# also export .tun, honoring diapason (`--diapason`, default 440 Hz) and using [exact tuning]
+python3 thin.py --diapason 442 --export-tun out
 
 # audio analysis (LPC) on a voice file
 python3 thin.py --audio-file voice.wav --analysis lpc out_voice
