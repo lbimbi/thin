@@ -11,7 +11,7 @@ Distributed under the MIT license – see the LICENSE file for details
 Nome programma: THIN – Sistemi di intonazione musicale / Program name: THIN – Musical intonation systems
 Versione / Version: PHI
 Autore / Author: LUCA BIMBI
-Data / Date: 2025-09-06
+Data / Date: 2025-09-09
 """
 
 import argparse
@@ -30,7 +30,7 @@ from typing import List, Tuple, Optional, Union, Iterable, Any
 __program_name__ = "THIN"  # Nuovo nome in onore di Walter Branchi / New name in honor of Walter Branchi
 __version__ = "PHI"  # Version string literal 'PHI'
 __author__ = "LUCA BIMBI"
-__date__ = "2025-09-07"  # La data distingue le release / The date distinguishes releases
+__date__ = "2025-09-09"  # La data distingue le release / The date distinguishes releases
 __license__ = "MIT"  # Vedi file LICENSE / See LICENSE file
 
 # Costanti / Constants (IT/EN)
@@ -882,16 +882,27 @@ def write_cpstun_table(output_base: str, ratios: List[float], basekey: int,
 
     return fnum, existed_before
 
-
-def write_tun_file(output_base: str, ratios: List[float], basekey: int,
+def write_tun_file(output_base: str, diapason: float, ratios: List[float], basekey: int,
                    basefrequency: float, tun_integer: bool = False) -> None:
     """Esporta un file .tun (AnaMark TUN) con valori espressi in cents assoluti riferiti a 8.1757989156437073336 Hz.
     Struttura: [Tuning] + 128 righe "note X=Y" (cents assoluti)."""
+    # ATTENZIONE! Deve recuperare il valore di diapason o prendere il --diapason da riga di comando
+    # e nel convertire il file .TUN deve essere in tal caso [Exact Tuning]
+    # basefreq = 8.1757989156437073336 * (diapasonHz/440)
+    # Riferimento assoluto AnaMark / AnaMark absolute reference (IT/EN)
+    f_ref = 8.1757989156437073336*(diapason/440)
+
     tun_path = f"{output_base}.tun"
-    lines = [
+
+    if diapason != 440:
+        lines = ["[Exact Tuning]",
+                 f"basefreq={f_ref}"]
+    else:
+
+        # logica -> diapason = 440?
+        lines = [
         "[Tuning]",
-        # f"; basekey={basekey} basefrequency={basefrequency:.6f}Hz | valori in cents assoluti riferiti a 8.1757989156437073336 Hz"
-    ]
+        ]
 
     def tet_freq(offset_semitones: int) -> float:
         return basefrequency * (2.0 ** (offset_semitones / 12.0))
@@ -912,10 +923,9 @@ def write_tun_file(output_base: str, ratios: List[float], basekey: int,
         else:
             return tet_freq(n - basekey)
 
-    # Riferimento assoluto AnaMark / AnaMark absolute reference (IT/EN)
-    f_ref = 8.1757989156437073336
 
-    for note_idx in range(128):
+
+    for note_idx in range(MIDI_MAX):
         f = note_freq(note_idx)
         if isinstance(f, (int, float)) and f > 0:
             cents = 1200.0 * math.log2(f / f_ref)
@@ -2579,6 +2589,9 @@ def convert_excel_to_outputs(excel_path: str,
     la colonna dei rapporti (o Hz/Base_Hz se necessario).
     Ritorna True se conversione riuscita.
     """
+    # ATTENZIONE! Deve recuperare il valore di diapason o prendere il --diapason da riga di comando
+    # e nel convertire il file .TUN deve essere in tal caso [Exact Tuning] 
+    # basefreq = 8.1757989156437073336 * (diapasonHz/440)
     try:
         from openpyxl import load_workbook
     except ImportError:
@@ -2722,7 +2735,7 @@ def convert_excel_to_outputs(excel_path: str,
 
     # Scrivi cpstun e tun (entrambi di default)
     fnum, existed = write_cpstun_table(out_base, ratios_eff, basekey_eff, base_hz, None)
-    write_tun_file(out_base if not existed else f"{out_base}_{fnum}", ratios_eff, basekey_eff, base_hz, tun_integer)
+    write_tun_file(out_base if not existed else f"{out_base}_{fnum}", diapason_hz, ratios_eff, basekey_eff, base_hz, tun_integer)
 
     return True
 
@@ -4419,7 +4432,7 @@ def main():
                     "Diapason render unavailable or failed"))
 
     if args.export_tun:
-        write_tun_file(export_base, ratios_eff, basekey_eff, basenote, args.tun_integer)
+        write_tun_file(export_base, args.diapason, ratios_eff, basekey_eff, basenote, args.tun_integer)
 
 
 if __name__ == "__main__":
