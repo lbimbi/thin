@@ -15,7 +15,7 @@ Consente di:
 - creare tabelle `cpstun` (GEN -2) in un file `.csd` per Csound;
 - esportare tabelle del sistema in formato testo (`_system.txt`) e Excel (`_system.xlsx`);
 - generare tabelle di confronto (`_compare.txt`/`_compare.xlsx`) rispetto a TET (12/24/48), serie armonica e subarmonica;
-- opzionalmente esportare file AnaMark `.tun`;
+- opzionalmente esportare file AnaMark `.tun` con diapason configurabile e [exact tuning] (adattamento della frequenza di base del formato .tun);
 - opzionalmente eseguire analisi audio (F0 e formanti) tramite `librosa` e allineare i risultati alle tabelle di confronto.
 
 THIN è parte del progetto SIM e deriva concetti organizzativi dal documento SIM-2NV (manual-2nv.md), ma le opzioni e il comportamento riportati qui sono specifici di THIN (thin.py).
@@ -57,7 +57,7 @@ Genera:
 - `out_compare.txt` e, se disponibile `openpyxl`, anche `out_compare.xlsx`.
 
 Opzioni utili:
-- `--export-tun` per esportare anche `out.tun` (AnaMark TUN);
+- `--export-tun` per esportare anche `out.tun` (AnaMark TUN); il file `.tun` rispetta il diapason impostato (`--diapason`, default 440 Hz) adattando la frequenza di base del formato e usa [exact tuning] per preservare i rapporti; opzionalmente `--tun-integer` arrotonda i cent. 
 - `--basenote A4 --diapason 442` per cambiare la nota di riferimento e il diapason;
 - `--span 3` per ripetere la serie su 3 intervalli;
 - `--audio-file voce.wav --analysis lpc` per analisi audio con indicatore di avanzamento.
@@ -96,7 +96,7 @@ Nota: i default sono tra parentesi.
 | `--no-reduce` | - | flag | No | - | Non ridurre all'ottava/intervallo |
 | `--span`, `--ambitus` | `N` | int (>=1) | No | `1` | Ripete la serie su N intervalli |
 | `--interval-zero` | - | flag | No | - | Forza `interval=0` nella tabella cpstun (usa la serie non ripetuta) |
-| `--export-tun` | - | flag | No | - | Esporta file `.tun` (AnaMark TUN) |
+| `--export-tun` | - | flag | No | - | Esporta file `.tun` (AnaMark TUN), rispettando il diapason (`--diapason`) con adattamento della frequenza di base del formato .tun e uso di [exact tuning] |
 | `--tun-integer` | - | flag | No | - | `.tun`: arrotonda i cents all'intero più vicino |
 | `--convert` | `FILE.xlsx` | path file | No | - | Converte foglio Excel (System/Compare) in `.csd` e `.tun` |
 | `--import-tun` | `FILE.tun` | path file | No | - | Importa `.tun` e salva `*_ratios.txt` (MIDI→ratio) |
@@ -247,7 +247,7 @@ THIN is a command-line tool to generate and compare tuning systems. It can:
 - create `cpstun` (GEN -2) tables into a `.csd` file for Csound;
 - export system tables to text (`_system.txt`) and Excel (`_system.xlsx`);
 - build comparison tables (`_compare.txt`/`_compare.xlsx`) against TET (12/24/48), the harmonic and the subharmonic series;
-- optionally export AnaMark `.tun` files;
+- optionally export AnaMark `.tun` files with configurable diapason and [exact tuning] support (adapts the .tun base frequency to the selected reference);
 - optionally run audio analysis (F0 and formants) via `librosa` and align results within comparison tables.
 
 It belongs to the SIM project and adopts ideas from SIM-2NV (manual-2nv.md), but the options and behavior described here are specific to THIN (thin.py).
@@ -287,7 +287,7 @@ This produces:
 - `out_compare.txt` and, if `openpyxl` is available, also `out_compare.xlsx`.
 
 Useful options:
-- `--export-tun` to also export `out.tun` (AnaMark TUN);
+- `--export-tun` to also export `out.tun` (AnaMark TUN); the `.tun` file honors the selected diapason (`--diapason`, default 440 Hz) by adapting the format base frequency and uses [exact tuning] to preserve ratios; optionally `--tun-integer` rounds cents. 
 - `--basenote A4 --diapason 442` to set reference note and diapason;
 - `--span 3` to repeat the series over 3 intervals;
 - `--audio-file voice.wav --analysis lpc` to run audio analysis with a progress indicator.
@@ -326,7 +326,7 @@ Defaults in parentheses.
 | `--no-reduce` | - | flag | No | - | Do not reduce to octave/interval |
 | `--span`, `--ambitus` | `N` | int (>=1) | No | `1` | Repeat the series across N intervals |
 | `--interval-zero` | - | flag | No | - | Force `interval=0` in cpstun (uses non-repeated series) |
-| `--export-tun` | - | flag | No | - | Export `.tun` (AnaMark TUN) file |
+| `--export-tun` | - | flag | No | - | Export `.tun` (AnaMark TUN), honoring `--diapason` by adapting the .tun base frequency and using [exact tuning] |
 | `--tun-integer` | - | flag | No | - | `.tun`: round cents to nearest integer |
 | `--convert` | `FILE.xlsx` | file path | No | - | Convert Excel sheet (System/Compare) to `.csd` and `.tun` |
 | `--import-tun` | `FILE.tun` | file path | No | - | Import `.tun` and save `*_ratios.txt` (MIDI→ratio) |
