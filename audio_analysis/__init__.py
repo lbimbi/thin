@@ -1460,6 +1460,17 @@ def estimate_diapason_and_ratios(audio_path: str,
     # Cluster per prossimità relativa con tolleranza personalizzabile
     tolerance_fraction = tolerance_percent / 100.0  # Converte percentuale in frazione
 
+    # Calculate tolerance impact in cents for user information
+    # For a typical reference frequency around 440Hz, tolerance_percent gives this cents tolerance:
+    tolerance_cents = tolerance_percent / 100.0 * 1200 / math.log(2) * math.log(1 + tolerance_percent/100.0)
+    # Simplified approximation: tolerance_percent ≈ cents/17.3 (for small percentages)
+    tolerance_cents_approx = tolerance_percent * 17.3  # More accurate for small tolerances
+
+    print(f"Clustering tolerance: {tolerance_percent}% relative ≈ {tolerance_cents_approx:.1f} cents")
+    print(f"Clustering method: {clustering_method}")
+    if scale_size_hint:
+        print(f"Scale size hint: {scale_size_hint} degrees")
+
     # Prepare weights for weighted clustering if enabled
     weights = None
     if duration_weighting and clustering_method == "weighted":
@@ -1730,6 +1741,11 @@ def estimate_diapason_and_ratios(audio_path: str,
         'diapason_sample_count': a4_sample_count,
         'diapason_delta_440_hz': a4_delta_440_hz,
         'diapason_delta_440_percent': a4_delta_440_percent,
+        # Clustering tolerance information
+        'clustering_tolerance_percent': tolerance_percent,
+        'clustering_tolerance_cents_approx': tolerance_cents_approx,
+        'clustering_method': clustering_method,
+        'scale_size_hint': scale_size_hint,
     }
 
     # NEW: Analisi frammenti di scala
@@ -2434,7 +2450,7 @@ def cross_inference_cqt_f0(cqt_analysis: dict, f0_audio_path: str) -> Optional[d
         peak_indices = peaks
     except ImportError:
         find_peaks = None  # Define for linter consistency
-        # Fallback senza scipy: trova massimi locali semplici
+        # Fallback without scipy: find maxima in the CQT
         for i in range(1, len(cqt_mean) - 1):
             if cqt_mean[i] > cqt_mean[i-1] and cqt_mean[i] > cqt_mean[i+1]:
                 if cqt_mean[i] > _np.max(cqt_mean) * 0.1:
