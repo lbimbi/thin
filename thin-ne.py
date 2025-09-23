@@ -19,11 +19,12 @@ import tun_csd
 import utils
 
 
+
 def main() -> None:
     """Main entry point"""
     # Setup warning suppression and logging
     utils.setup_warning_logging("thin_warnings.log")
-    utils.suppress_tensorflow_warnings()
+    # utils.suppress_tensorflow_warnings()  # Temporarily disabled due to TensorFlow issues
 
     # Theme pre-scan and apply before any styled output
     utils.clear_screen()
@@ -1007,7 +1008,12 @@ def main() -> None:
 
         # Generate system name based on the selected options (same logic as SCL)
         if hasattr(args, 'geometric') and args.geometric:
-            ascl_system_name = "Geometric progression"
+            # Include interval information for geometric systems
+            if isinstance(args.geometric, list) and len(args.geometric) >= 3:
+                interval_value = args.geometric[2]  # Third parameter is the interval
+                ascl_system_name = f"Geometric progression, interval={interval_value}"
+            else:
+                ascl_system_name = "Geometric progression"
         elif hasattr(args, 'natural') and args.natural:
             ascl_system_name = "Natural intonation"
         elif hasattr(args, 'danielou') and args.danielou:
@@ -1093,8 +1099,7 @@ def main() -> None:
                     est_diapason and isinstance(est_diapason, (int, float)) and est_diapason > 0):
                 ascl_diapason = float(est_diapason)
 
-        tun_csd.write_ascl_file(export_base, ascl_ratios, str(basenote), ascl_diapason, ascl_system_name,
-                                analysis_data=analysis_data)
+        tun_csd.write_ascl_file(export_base, ascl_ratios, str(args.basenote), ascl_diapason, ascl_system_name)
 
     # When --diapason-analysis is active, also generate a cpstun table (.csd) using the same
     # selection logic as for .tun/.scl (inferred/Scala/raw analysis ratios and estimated basenote),

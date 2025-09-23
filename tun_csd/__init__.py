@@ -59,7 +59,7 @@ Historical DaMuSc integration has been removed for simplified maintenance.
 import math
 import os
 import re
-from typing import List, Tuple, Optional, Union, Dict
+from typing import List, Tuple, Optional, Union
 from fractions import Fraction
 
 import consts
@@ -85,18 +85,172 @@ def _filter_valid_ratios(ratios: List[float]) -> List[float]:
     return valid_ratios
 
 
+def _detect_natural_period(ratios: List[float], system_name: str = None) -> float:
+    """Detect the natural period of a tuning system from its ratios.
+
+    Args:
+        ratios: List of frequency ratios (excluding unison)
+        system_name: Name of the tuning system (for hints)
+
+    Returns:
+        The detected natural period (e.g., 2.0 for octave, 3.0 for tritave)
+    """
+    if not ratios:
+        return 2.0  # Default to octave
+
+    # PRIORITY 1: Check system name first to override ratio analysis for known systems
+    if system_name:
+        import re as _re
+        name_lower = system_name.lower()
+
+        # Special case: All n-TET systems should ALWAYS use octave (2.0) regardless of ratios found
+        # UNLESS they explicitly specify a different interval (like tritave)
+        if '12-tet' in name_lower or '12tet' in name_lower or 'temperament 12' in name_lower:
+            return 2.0
+
+        # For other n-TET systems, we need to infer the period from the ratios
+        # since the system name may not contain the interval information
+        if 'tet' in name_lower or 'temperament' in name_lower:
+            # Check if interval is specified and calculate the period from it
+            if 'interval' in name_lower or any(c in name_lower for c in ['1200', '1350', '1902', '700']):
+                # Don't force octave if explicit interval is given - let ratio analysis determine period
+                pass
+            else:
+                # For n-TET systems without explicit interval, try to infer from ratios
+                # The period should be determined from the actual interval used
+                if ratios:
+                    # For equal temperament, all steps should be equal
+                    # Calculate the step size from the first few ratios
+                    step_size_cents = None
+                    if len(ratios) >= 2:
+                        # Calculate step size in cents from first two ratios
+                        ratio1 = ratios[0] if ratios[0] > 1.0 else (ratios[1] if len(ratios) > 1 else 1.0)
+                        ratio2 = ratios[1] if len(ratios) > 1 and ratios[1] > ratio1 else (ratios[2] if len(ratios) > 2 else ratio1 * 1.1)
+
+                        if ratio2 > ratio1 > 1.0:
+                            step_size_cents = 1200 * math.log2(ratio2 / ratio1)
+
+                            # Extract n from system name to calculate total period
+                            et_match = _re.search(r'(\d+)-?TET', name_lower, _re.IGNORECASE)
+                            if et_match:
+                                try:
+                                    n_tet = int(et_match.group(1))
+                                    # Period = step_size * n_tet cents
+                                    period_cents = step_size_cents * n_tet
+                                    period_ratio = 2 ** (period_cents / 1200.0)
+                                    return period_ratio
+                                except (ValueError, TypeError):
+                                    pass
+
+                # Fallback to octave if inference fails
+                return 2.0
+
+        # For geometric systems, try to infer from system name
+        if 'tritave' in name_lower or '3/1' in name_lower:
+            return 3.0
+        elif 'fifth' in name_lower or '3/2' in name_lower:
+            return 1.5
+        elif 'fourth' in name_lower or '4/3' in name_lower:
+            return 4.0/3.0
+
+        # For ET systems, try to infer from interval value in system name
+        # Extract interval cents from patterns like "17-TET 1903c" or "Equal Temperament 17-TET, interval=1903"
+        # Look for interval patterns
+        interval_match = _re.search(r'interval[=:]?\s*(\d+(?:\.\d+)?)', name_lower)
+        if interval_match:
+            try:
+                interval_cents = float(interval_match.group(1))
+                # Convert cents to ratio: ratio = 2^(cents/1200)
+                period_ratio = 2 ** (interval_cents / 1200.0)
+                return period_ratio
+            except (ValueError, TypeError):
+                pass
+
+        # Look for explicit cents values like "1903c" or "1903.0c"
+        cents_match = _re.search(r'(\d+(?:\.\d+)?)\s*c(?:ents?)?', name_lower)
+        if cents_match:
+            try:
+                interval_cents = float(cents_match.group(1))
+                period_ratio = 2 ** (interval_cents / 1200.0)
+                return period_ratio
+            except (ValueError, TypeError):
+                pass
+
+    # PRIORITY 2: Try to find common period patterns in the ratios (for non-12TET systems)
+    max_ratio = max(ratios) if ratios else 2.0
+
+    # Common period factors to check
+    common_periods = [
+        2.0,      # Octave (most common)
+        3.0,      # Tritave
+        1.5,      # Perfect fifth
+        4.0/3.0,  # Perfect fourth
+        5.0/4.0,  # Major third
+        6.0/5.0,  # Minor third
+        9.0/8.0,  # Major second
+    ]
+
+    tolerance = 0.05  # ~86 cents tolerance
+
+    # Check if any ratio is close to a known period
+    # For ASCL, prioritize octave (2.0) detection for ET systems
+    found_periods = []
+    for period in common_periods:
+        if any(abs(ratio - period) < tolerance for ratio in ratios):
+            found_periods.append(period)
+
+    # If we found multiple periods, prefer octave (2.0) for ET systems
+    if found_periods:
+        if 2.0 in found_periods:
+            return 2.0  # Always prefer octave when present
+        else:
+            return found_periods[0]  # Otherwise use first match
+
+    # If we can't detect a specific period, but have ratios that exceed 2.0,
+    # use the maximum ratio as a hint for the period
+    if max_ratio > 2.5:
+        # Round to nearest common period
+        for period in common_periods:
+            if abs(max_ratio - period) < 0.3:
+                return period
+
+        # If no match, use the max ratio directly (for unusual periods)
+        return max_ratio
+
+    # Default to octave
+    return 2.0
+
+
 def _ratio_to_scala_format(ratio: float) -> str:
-    """Convert a ratio to appropriate Scala format (fraction or cents)."""
-    from fractions import Fraction
+    """Convert a ratio to appropriate Scala format (fraction or cents).
+
+    For ASCL format, prioritize cents for ET systems and simple fractions for others.
+    """
     try:
-        # Convert to fraction with reasonable denominator
-        frac = Fraction(ratio).limit_denominator(10000)
-        # Use fraction if precise enough, otherwise cents
-        if abs(float(frac) - ratio) < 1e-8 and 1 < frac.denominator <= 10000:
+        # Special case: exact octave should always be 2/1
+        if abs(ratio - 2.0) < 1e-8:
+            return "2/1"
+
+        # Convert to cents: cents = 1200 * log2(ratio)
+        cents = 1200.0 * math.log2(ratio)
+
+        # For ET systems, prefer cents if they're close to multiples of 100
+        # (This helps with 12-TET which should show 100., 200., etc.)
+        if abs(cents % 100) < 0.1:  # Very close to 100-cent multiples
+            # Round to nearest cent for clean output
+            cents_rounded = round(cents)
+            return f"{cents_rounded}."
+
+        # For other round values (like 300.0000, 400.0000), also use clean format
+        if abs(cents - round(cents)) < 0.001:  # Very close to whole numbers
+            return f"{round(cents)}."
+
+        # For other cases, try fraction first if it's simple and accurate
+        frac = Fraction(ratio).limit_denominator(1000)  # Lower limit for simpler fractions
+        if abs(float(frac) - ratio) < 1e-6 and 1 < frac.denominator <= 100:
             return f"{frac.numerator}/{frac.denominator}"
         else:
-            # Convert to cents: cents = 1200 * log2(ratio)
-            cents = 1200.0 * math.log2(ratio)
+            # Use cents with appropriate precision
             return f"{cents:.5f}"
     except (ValueError, TypeError, ZeroDivisionError):
         # Fallback a formato decimale
@@ -581,7 +735,7 @@ def convert_excel_to_outputs(excel_path: str,
         """Parse .scl file using centralized function."""
         return parse_scl_file(path)
 
-    def _Fractions_to_cents(ratio_list: list) -> list:
+    def _fractions_to_cents(ratio_list: list) -> list:
         """Convert a list of fraction ratios to cents values."""
         cents = []
         for r in ratio_list:
@@ -738,20 +892,20 @@ def convert_excel_to_outputs(excel_path: str,
                 for k in range(12):
                     r = utils.reduce_to_octave(utils.pow_fraction(_Frac(3, 2), k)) if hasattr(utils, 'pow_fraction') else utils.reduce_to_octave((3 / 2) ** k)
                     vals.append(float(r))
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
             except (TypeError, ValueError, AttributeError):
                 vals = [(1.5 ** k) for k in range(12)]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
 
         def _pyth7_cents() -> list:
             try:
                 from fractions import Fraction as _Frac
                 seq = [_Frac(1, 1), _Frac(9, 8), _Frac(81, 64), _Frac(4, 3), _Frac(3, 2), _Frac(27, 16), _Frac(243, 128)]
                 vals = [utils.reduce_to_octave(r) for r in seq]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
             except (TypeError, ValueError, AttributeError):
                 vals = [1.0, 9 / 8, 81 / 64, 4 / 3, 3 / 2, 27 / 16, 243 / 128]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
 
         py12_err = _avg_error_best_rotation(cents_from_excel, _pyth12_cents())
         py7_err = _avg_error_best_rotation(cents_from_excel, _pyth7_cents())
@@ -766,20 +920,20 @@ def convert_excel_to_outputs(excel_path: str,
                 from fractions import Fraction as _Frac
                 seq = [_Frac(1, 1), _Frac(9, 8), _Frac(5, 4), _Frac(4, 3), _Frac(3, 2), _Frac(5, 3), _Frac(15, 8)]
                 vals = [utils.reduce_to_octave(r) for r in seq]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
             except (ValueError, TypeError):
                 vals = [1.0, 9 / 8, 5 / 4, 4 / 3, 3 / 2, 5 / 3, 15 / 8]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
 
         def _ji_triad_456_cents() -> list:
             try:
                 from fractions import Fraction as _Frac
                 seq = [_Frac(1, 1), _Frac(5, 4), _Frac(3, 2)]
                 vals = [utils.reduce_to_octave(r) for r in seq]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
             except (ValueError, TypeError):
                 vals = [1.0, 5 / 4, 3 / 2]
-                return _Fractions_to_cents(vals)
+                return _fractions_to_cents(vals)
 
         ji5_err = _avg_error_best_rotation(cents_from_excel, _ji_diatonic5_cents())
         ji_triad_err = _avg_error_best_rotation(cents_from_excel, _ji_triad_456_cents())
@@ -846,7 +1000,7 @@ def write_scl_file(output_base: str, ratios: List[float], basenote: str, diapaso
 
 def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapason: float,
                    system_name: str = "Custom Scale", source: str = None, link: str = None,
-                   analysis_data: Optional[Dict] = None) -> None:
+) -> None:
     """Exports an .ascl file (Ableton Live format) with the provided ratios.
 
     ASCL format is an Ableton extension to Scala format with Ableton metadata
@@ -861,15 +1015,101 @@ def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapas
         system_name: Name of the tuning system
         source: Source or author of the tuning system (optional)
         link: URL for more information about the system (optional)
-        analysis_data: Optional analysis data for intelligent note naming (reserved for future use)
     """
     ascl_path = f"{output_base}.ascl"
 
     # Prepare description according to Scala/ASCL specifications
     description = f"{system_name}, 1/1={diapason:.2f} Hz, base={basenote}"
 
-    # Filter and sort ratios using helper function
-    valid_ratios = _filter_valid_ratios(ratios)
+    # For ASCL, we exclude unison (1.0) but need to include the octave (2.0)
+    # Ableton's official 12-TET example has 12 entries: steps 1-11 + octave (2/1)
+    valid_ratios = []
+    for ratio in ratios:
+        if isinstance(ratio, (int, float)) and ratio > 1.0 and math.isfinite(ratio):
+            valid_ratios.append(float(ratio))
+
+    # CRITICAL: For n-TET systems, ASCL format expects exactly n ratios with octave (2/1) as the last one
+    # Don't use the system's natural period for ASCL export - always use octave for ET systems
+
+    # Check if this is an n-TET system
+    is_tet_system = ('tet' in system_name.lower() or 'temperament' in system_name.lower() or
+                     'equal' in system_name.lower())
+
+    if is_tet_system:
+        # For n-TET systems, ASCL format needs exactly n ratios with octave (2/1) as the final one
+        # Extract the n-TET number from system name to know how many ratios we need
+        import re as _re_tet
+        et_match = _re_tet.search(r'(\d+)-?TET', system_name, _re_tet.IGNORECASE)
+        if et_match:
+            try:
+                n_tet = int(et_match.group(1))
+
+                # For n-TET systems, we want exactly n ratios ending with the system's period
+                # NOT always the octave - the period depends on the interval specified
+
+                # Find the natural period from the original ratios or detect from system name
+                natural_period = _detect_natural_period(valid_ratios, system_name)
+
+                if len(valid_ratios) >= n_tet - 1:
+                    # Take first (n-1) ratios from the system
+                    ratios_before_period = valid_ratios[:n_tet-1]
+                    # For n-TET systems, ensure we have exactly n ratios with the period as last
+                    valid_ratios = ratios_before_period + [natural_period]
+                else:
+                    # If we have fewer than (n-1) ratios, fill up to n-1 and add period
+                    while len(valid_ratios) < n_tet - 1:
+                        if valid_ratios:
+                            # Add intermediate ratios (simple linear interpolation as fallback)
+                            last_ratio = valid_ratios[-1]
+                            step_ratio = (natural_period / last_ratio) ** (1.0 / (n_tet - len(valid_ratios)))
+                            valid_ratios.append(last_ratio * step_ratio)
+                        else:
+                            break
+                    valid_ratios.append(natural_period)
+            except ValueError:
+                # Fallback to old logic if n-TET number can't be extracted
+                octave = 2.0
+                octave_tolerance = 0.02  # ~24 cents
+                has_octave = any(abs(r - octave) < octave_tolerance for r in valid_ratios)
+                if not has_octave:
+                    valid_ratios.append(octave)
+        else:
+            # Fallback for systems with "temperament" or "equal" but no clear n-TET pattern
+            octave = 2.0
+            octave_tolerance = 0.02  # ~24 cents
+            has_octave = any(abs(r - octave) < octave_tolerance for r in valid_ratios)
+            if not has_octave:
+                valid_ratios.append(octave)
+    else:
+        # For non-ET systems (geometric, natural, etc.), handle period appropriately
+        if 'geometric' in system_name.lower() or 'progression' in system_name.lower():
+            # For geometric systems, we need to add the final interval ratio
+            # Extract the interval from the system name or calculate from ratios
+            import re as _re_geom
+            interval_match = _re_geom.search(r'interval[=:]?\s*(\d+(?:\.\d+)?)', system_name.lower())
+            if interval_match:
+                try:
+                    interval_cents = float(interval_match.group(1))
+                    interval_ratio = 2 ** (interval_cents / 1200.0)
+                    # Check if this interval ratio is already present
+                    interval_tolerance = 0.001  # ~1.7 cents
+                    has_interval = any(abs(r - interval_ratio) < interval_tolerance for r in valid_ratios)
+                    if not has_interval:
+                        valid_ratios.append(interval_ratio)
+                except (ValueError, TypeError):
+                    pass
+        else:
+            # For other non-ET systems (natural, JI, etc.), detect the natural period
+            natural_period = _detect_natural_period(valid_ratios, system_name)
+
+            # Check if the natural period is already present
+            period_tolerance = 0.02  # ~24 cents
+            has_period = any(abs(r - natural_period) < period_tolerance for r in valid_ratios)
+
+            if not has_period and natural_period > 1.0:
+                valid_ratios.append(natural_period)
+
+    valid_ratios.sort()
     num_notes = len(valid_ratios)
 
     # Build file according to Scala specifications con estensioni ASCL
@@ -890,19 +1130,180 @@ def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapas
     lines.append("!")
     lines.append("! === ABLETON LIVE EXTENSIONS ===")
 
-    # @ABL REFERENCE_PITCH: octave_number note_index_in_octave frequency_hz
-    # Determine octave and note index based on basenote
-    octave_number, note_index = _parse_basenote_for_ascl(basenote)
-    lines.append(f"! @ABL REFERENCE_PITCH {octave_number} {note_index} {diapason:.1f}")
+    # @ABL REFERENCE_PITCH: octave_number note_index_in_scale frequency_hz
+    # According to ASCL spec: note_index refers to which note in our NOTE_NAMES list,
+    # not an absolute note system. We should use our basenote as the reference.
+
+    # Parse basenote to get octave for REFERENCE_PITCH
+    basenote_octave, _ = _parse_basenote_for_ascl(basenote)
+
+    # The reference note index is always 0 since our NOTE_NAMES starts with the basenote (unison)
+    reference_note_index = 0
+
+    # Calculate the frequency of our basenote using the diapason and MIDI conversion
+    try:
+        # Parse basenote to get MIDI number
+        import re as _re
+        match = _re.match(r'([A-G][#B]?)(\d+)', basenote.upper())
+        if match:
+            note_name = match.group(1)
+            octave = int(match.group(2))
+
+            # MIDI note number calculation
+            note_to_midi = {
+                'C': 0, 'C#': 1, 'DB': 1, 'D': 2, 'D#': 3, 'EB': 3,
+                'E': 4, 'F': 5, 'F#': 6, 'GB': 6, 'G': 7, 'G#': 8, 'AB': 8,
+                'A': 9, 'A#': 10, 'BB': 10, 'B': 11
+            }
+
+            note_offset = note_to_midi.get(note_name, 0)
+            midi_number = (octave + 1) * 12 + note_offset  # C4 = 60
+
+            # Calculate frequency from MIDI number using A4=diapason as reference
+            basenote_frequency = diapason * (2 ** ((midi_number - 69) / 12.0))
+        else:
+            # Fallback to C4 if parsing fails
+            basenote_frequency = 261.6256  # C4
+    except:
+        basenote_frequency = 261.6256  # Fallback to C4
+
+    lines.append(f"! @ABL REFERENCE_PITCH {basenote_octave} {reference_note_index} {basenote_frequency:.1f}")
+
+    # Parse basenote for NOTE_RANGE_BY_INDEX (separate from REFERENCE_PITCH)
+    basenote_octave, basenote_note_index = _parse_basenote_for_ascl(basenote)
 
     # @ABL NOTE_NAMES: note names for each pitch in the scale
-    note_names = _generate_note_names_for_ascl(num_notes, ratios, basenote, diapason, analysis_data)  # Must match number of notes declared
-    lines.append(f"! @ABL NOTE_NAMES {' '.join(note_names)}")
+    # According to ASCL spec: "The first entry in the sequence applies to the zeroeth note"
+    # CRITICAL: User expects the first note name to be the basenote itself (unison)
+    # So we need to prepend the basenote name to the list of ratio-based names
+    # This gives us (num_notes + 1) total names: unison + all ratios
 
-    # @ABL NOTE_RANGE_BY_FREQUENCY: minimum frequency for tuning range
-    # Use reasonable frequency as minimum (8.0 Hz) and maximum (21000.0 Hz)
-    # According to specification, range is from 4.0 to 21000.0 Hz
-    lines.append("! @ABL NOTE_RANGE_BY_FREQUENCY 8.0 21000.0")
+    # Extract the basenote name (e.g., "C" from "C3")
+    try:
+        import re as _re
+        match = _re.match(r'([A-G][#B]?)', basenote.upper())
+        if match:
+            basenote_name = match.group(1)
+            # Convert to user-friendly format
+            if basenote_name == "DB":
+                basenote_name = "C♯/D♭"
+            elif basenote_name == "EB":
+                basenote_name = "D♯/E♭"
+            elif basenote_name == "GB":
+                basenote_name = "F♯/G♭"
+            elif basenote_name == "AB":
+                basenote_name = "G♯/A♭"
+            elif basenote_name == "BB":
+                basenote_name = "A♯/B♭"
+            elif basenote_name.endswith("#"):
+                # Convert sharps to sharp/flat notation
+                base = basenote_name[0]
+                if base == "C":
+                    basenote_name = "C♯/D♭"
+                elif base == "D":
+                    basenote_name = "D♯/E♭"
+                elif base == "F":
+                    basenote_name = "F♯/G♭"
+                elif base == "G":
+                    basenote_name = "G♯/A♭"
+                elif base == "A":
+                    basenote_name = "A♯/B♭"
+        else:
+            basenote_name = "C"  # Fallback
+    except (ValueError, TypeError, AttributeError):
+        basenote_name = "C"  # Fallback
+
+    # Generate note names for the ratios
+    # IMPORTANT: Ableton expects scales to repeat at the octave (2/1).
+    # For octave-repeating scales: The last ratio is 2/1 and doesn't need a name.
+    # For non-octave cycles: We need to generate ALL ratios with names, or extend to octave.
+
+    # Check if this scale repeats at the octave
+    is_octave_repeating = False
+    if len(valid_ratios) > 0:
+        last_ratio = valid_ratios[-1]
+        # Check if last ratio is close to 2.0 (octave)
+        if abs(last_ratio - 2.0) < 0.01:  # Within ~17 cents of octave
+            is_octave_repeating = True
+
+    if is_octave_repeating:
+        # Standard octave-repeating scale: exclude the last ratio (2/1) from names
+        ratios_for_names = valid_ratios[:-1] if len(valid_ratios) > 0 else []
+        num_names_needed = len(ratios_for_names)
+    else:
+        # Non-octave cycle: ALL ratios need names
+        # This allows Ableton to understand the actual pitch progression
+        ratios_for_names = valid_ratios
+        num_names_needed = len(ratios_for_names)
+
+    ratio_note_names = _generate_note_names_for_ascl(num_names_needed, ratios_for_names, basenote, diapason, system_name, basenote_name, is_octave_repeating)
+
+    # For ASCL format:
+    # - Octave-repeating scales: prepend the basenote name since we excluded the octave ratio
+    # - Non-octave cycles: do NOT prepend since all ratios are included
+    if is_octave_repeating:
+        # For octave-repeating scales, prepend the basenote name as the first element
+        # This ensures that when REFERENCE_PITCH points to index 0, it points to the basenote
+        note_names = [basenote_name] + ratio_note_names
+    else:
+        # For non-octave cycles, the first ratio already represents the first step
+        # No need to prepend the basenote name
+        note_names = ratio_note_names
+
+    # Simple duplicate handling: add a suffix to any duplicate names
+    seen_names = {}
+    final_names = []
+
+    for name in note_names:
+        if name in seen_names:
+            # Duplicate found - add a distinguishing suffix
+            seen_names[name] += 1
+            # Add dots to distinguish (e.g., "C", "C.", "C..", etc.)
+            modified_name = name + "." * seen_names[name]
+            final_names.append(modified_name)
+        else:
+            seen_names[name] = 0
+            final_names.append(name)
+
+    note_names = final_names
+
+    # Format note names with quotes as per Ableton specification
+    quoted_names = [f'"{name}"' for name in note_names]
+    lines.append(f"! @ABL NOTE_NAMES {' '.join(quoted_names)}")
+
+    # @ABL NOTE_RANGE_BY_FREQUENCY: calculate sensible range based on system ratios
+    if valid_ratios:
+        # Use the basenote frequency we already calculated above
+        base_freq = basenote_frequency
+
+        # Calculate frequency range from the ratios
+        min_ratio = min(valid_ratios) if valid_ratios else 1.0
+        max_ratio = max(valid_ratios) if valid_ratios else 2.0
+
+        # Calculate actual frequency range
+        min_freq = base_freq * min_ratio
+        max_freq = base_freq * max_ratio
+
+        # Add some margin and ensure reasonable bounds
+        margin_factor = 0.8  # Allow 20% lower than minimum
+        min_freq_with_margin = max(20.0, min_freq * margin_factor)  # At least 20 Hz
+        max_freq_with_margin = min(20000.0, max_freq * 1.2)  # At most 20 kHz, 20% higher than max
+
+        # Use NOTE_RANGE_BY_INDEX with parsed basenote octave and the basenote index in our scale
+        # The second parameter should be the index of the basenote within our custom scale (always 0)
+        # because the basenote is the first note (index 0) in our NOTE_NAMES list
+        try:
+            if basenote_octave is not None:
+                # The basenote is always index 0 in our custom scale
+                # This tells Ableton that the reference pitch (basenote) is at index 0 in our scale
+                basenote_index_in_scale = 0  # F# in our 7-note scale is index 0, not index 6
+                lines.append(f"! @ABL NOTE_RANGE_BY_INDEX {basenote_octave} {basenote_index_in_scale}")
+            else:
+                # Fallback to frequency-based range if parsing failed
+                lines.append(f"! @ABL NOTE_RANGE_BY_FREQUENCY {min_freq_with_margin:.1f} {max_freq_with_margin:.1f}")
+        except Exception as e:
+            # Fallback to frequency-based range
+            lines.append(f"! @ABL NOTE_RANGE_BY_FREQUENCY {min_freq_with_margin:.1f} {max_freq_with_margin:.1f}")
 
     # @ABL SOURCE: source documentation (optional)
     if source:
@@ -923,8 +1324,187 @@ def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapas
         print(f"Error writing .ascl: {e}")
 
 
-def _parse_basenote_for_ascl(basenote: str) -> Tuple[int, int]:
+def _determine_cycle_structure(system_name: str, ratios: List[float] = None, num_notes: int = 12) -> Tuple[int, bool]:
+    """Determines the cycle structure of a tuning system for note naming.
+
+    This function analyzes the actual ratios to determine the natural cycle/period
+    of the tuning system, which may be different from an octave (2:1).
+
+    Args:
+        system_name: Name of the tuning system
+        ratios: List of frequency ratios (if available)
+        num_notes: Total number of notes
+
+    Returns:
+        Tuple[cycle_size, use_traditional_names]:
+        - cycle_size: Number of steps before repetition/period
+        - use_traditional_names: Whether to use C,D,E... names (True) or Step0,Step1... (False)
+    """
+
+    # If we have ratios, analyze them to find the ACTUAL period
+    if ratios and len(ratios) > 1:
+        try:
+            # First, find the natural period of the system by analyzing the ratios
+            period_factor, period_steps = _analyze_period_from_ratios(ratios)
+
+            if period_steps > 0:
+                # We found a clear period
+                use_traditional = (period_steps == 12 and abs(period_factor - 2.0) < 0.01)  # Only for 12-step octaves
+                return period_steps, use_traditional
+
+            # If no clear period found, try to detect regular patterns
+            pattern_info = _detect_regular_pattern(ratios)
+            if pattern_info:
+                cycle_size, is_octave_based = pattern_info
+                use_traditional = (cycle_size == 12 and is_octave_based)
+                return cycle_size, use_traditional
+
+        except (ValueError, TypeError, ZeroDivisionError):
+            pass
+
+    # For ET systems, extract divisions from name ONLY as fallback
+    if system_name:
+        import re as _re
+        et_match = _re.search(r'(\d+)-?TET', system_name, _re.IGNORECASE)
+        if et_match:
+            try:
+                divisions = int(et_match.group(1))
+                # Use traditional names only for 12-TET with octave intervals
+                use_traditional = (divisions == 12)
+                # Check if we have information about the interval
+                if ratios and len(ratios) >= divisions:
+                    # Check if it's really octave-based
+                    last_ratio = ratios[divisions-1] if divisions <= len(ratios) else ratios[-1]
+                    if abs(last_ratio - 2.0) > 0.02:  # Not an octave
+                        use_traditional = False
+                return divisions, use_traditional
+            except ValueError:
+                pass
+
+    # Fallback: For systems without clear analysis, use conservative estimates
+    if system_name:
+        system_lower = system_name.lower()
+
+        # Geometric progressions - use all available ratios as they might not cycle
+        if 'geometric' in system_lower or 'progression' in system_lower:
+            return min(num_notes, 100), False  # Conservative large cycle
+
+        # Natural/JI systems - analyze for traditional 12-step if possible
+        if 'natural' in system_lower or 'just' in system_lower or '4:5:6' in system_lower:
+            return 12, True  # Assume traditional 12-step
+
+        # Danielou systems - can be very complex
+        if 'danielou' in system_lower:
+            return min(num_notes, 50), False  # Conservative large cycle
+
+        # Analysis-derived systems - no predictable pattern
+        if 'analysis' in system_lower or 'audio' in system_lower:
+            return min(num_notes, 30), False  # Conservative cycle size
+
+    # Default fallback: Use all available notes as one cycle
+    return min(num_notes, 12), (num_notes <= 12)
+
+
+def _analyze_period_from_ratios(ratios: List[float]) -> Tuple[float, int]:
+    """Analyze ratios to find the natural period of the tuning system.
+
+    Returns:
+        Tuple[period_factor, period_steps]: The period multiplier and number of steps,
+        or (0.0, 0) if no clear period is found.
+    """
+    if len(ratios) < 2:
+        return 0.0, 0
+
+    # Look for ratios that are powers of a common factor
+    # Common period factors: 2 (octave), 3 (tritave), etc.
+    common_periods = [2.0, 3.0, 1.5, 4.0/3.0, 5.0/4.0]  # octave, tritave, perfect fifth, fourth, major third
+
+    tolerance = 0.02  # ~24 cents tolerance
+
+    for period_factor in common_periods:
+        # Check at what steps this period factor appears
+        period_steps = []
+
+        for i, ratio in enumerate(ratios):
+            if ratio <= 1.0:
+                continue
+
+            # Check if this ratio is close to a power of period_factor
+            if period_factor > 1.0:
+                log_ratio = math.log(ratio) / math.log(period_factor)
+                nearest_power = round(log_ratio)
+
+                if nearest_power >= 1 and abs(log_ratio - nearest_power) < tolerance:
+                    # This ratio is close to period_factor^nearest_power
+                    if nearest_power == 1:  # First occurrence of the period
+                        period_steps.append(i + 1)  # +1 because we want step count, not index
+
+        # If we found period occurrences, use the first/smallest one
+        if period_steps:
+            return period_factor, min(period_steps)
+
+    return 0.0, 0
+
+
+def _detect_regular_pattern(ratios: List[float]) -> Optional[Tuple[int, bool]]:
+    """Detect if ratios follow a regular pattern (like ET systems).
+
+    Returns:
+        Tuple[cycle_size, is_octave_based] or None if no pattern detected.
+    """
+    if len(ratios) < 3:
+        return None
+
+    # Calculate step sizes in cents
+    steps_cents = []
+    for i in range(1, len(ratios)):
+        if ratios[i] > ratios[i-1] > 0:
+            step = 1200 * math.log2(ratios[i] / ratios[i-1])
+            steps_cents.append(step)
+
+    if len(steps_cents) < 2:
+        return None
+
+    # Check if steps are roughly equal (quasi-ET)
+    mean_step = sum(steps_cents) / len(steps_cents)
+    tolerance = 5.0  # 5 cents tolerance
+
+    if all(abs(step - mean_step) < tolerance for step in steps_cents):
+        # This looks like a regular ET-type system
+        # Check if it's standard 12-TET (100 cents per step)
+        if abs(mean_step - 100.0) < 0.5:  # ~100 cents per step = 12-TET
+            return 12, True
+
+        # For other regular systems, estimate cycle based on the actual pattern
+        # Check what total interval the pattern spans
+        if len(ratios) > 1:
+            total_cents = 1200 * math.log2(ratios[-1] / ratios[0])
+            estimated_cycle = len(ratios)
+
+            # Determine if it's octave-based by checking the total span
+            is_octave_based = abs(total_cents - 1200) < 50  # Within 50 cents of octave
+
+            return estimated_cycle, is_octave_based
+
+        # Fallback: estimate based on common intervals
+        steps_per_octave = 1200.0 / mean_step
+        steps_per_fifth = 700.0 / mean_step
+
+        # Round to nearest integer and check if reasonable
+        for target_steps, target_cents in [(steps_per_octave, 1200), (steps_per_fifth, 700)]:
+            rounded_steps = round(target_steps)
+            if 5 <= rounded_steps <= 100 and abs(target_steps - rounded_steps) < 0.1:
+                is_octave_based = abs(target_cents - 1200) < 50  # Within 50 cents of octave
+                return rounded_steps, is_octave_based
+
+    return None
+
+
+def _parse_basenote_for_ascl(basenote) -> Tuple[int, int]:
     """Converts a base note (e.g. 'A4') to octave_number and note_index for ASCL.
+
+    Args:
+        basenote: String note name (e.g. 'C3') or numeric frequency (e.g. 130.81)
 
     Returns:
         Tuple[octave_number, note_index]: octave (4 per A4) e indice nota (9 per A)
@@ -936,13 +1516,32 @@ def _parse_basenote_for_ascl(basenote: str) -> Tuple[int, int]:
         'A': 9, 'A#': 10, 'BB': 10, 'B': 11
     }
 
-    # Simple parsing for common notes like A4, C4, etc.
-    match = _NOTE_PARSE_PATTERN.match(basenote.upper())
-    if match:
-        note_name = match.group(1)
-        octave = int(match.group(2))
-        note_index = note_to_index.get(note_name, 9)  # Default A
-        return octave, note_index
+    # Handle numeric frequency input (convert to approximate note)
+    if isinstance(basenote, (int, float)):
+        try:
+            # Convert frequency to MIDI note number (A4 = 440 Hz = MIDI 69)
+            freq = float(basenote)
+            if freq > 0:
+                midi_float = 69 + 12 * math.log2(freq / 440.0)
+                midi_int = round(midi_float)
+                octave = (midi_int // 12) - 1  # MIDI octave adjustment
+                note_index = midi_int % 12
+                return max(0, octave), note_index
+        except (ValueError, TypeError, ZeroDivisionError):
+            pass
+
+    # Handle string input
+    if isinstance(basenote, str):
+        try:
+            # Simple parsing for common notes like A4, C4, etc.
+            match = _NOTE_PARSE_PATTERN.match(basenote.upper())
+            if match:
+                note_name = match.group(1)
+                octave = int(match.group(2))
+                note_index = note_to_index.get(note_name, 9)  # Default A
+                return octave, note_index
+        except (ValueError, TypeError, AttributeError):
+            pass
 
     # Default to A4 if parsing fails
     return 4, 9
@@ -950,7 +1549,8 @@ def _parse_basenote_for_ascl(basenote: str) -> Tuple[int, int]:
 
 def _generate_note_names_for_ascl(num_notes: int, ratios: List[float] = None,
                                  basenote: str = "C4", diapason: float = 440.0,
-                                 analysis_data: Optional[Dict] = None) -> List[str]:
+                                 system_name: str = None, basenote_name: str = None,
+                                 is_octave_repeating: bool = True) -> List[str]:
     """Generates note names for ASCL with microtonal arrows based on analysis data.
 
     Args:
@@ -958,26 +1558,52 @@ def _generate_note_names_for_ascl(num_notes: int, ratios: List[float] = None,
         ratios: List of frequency ratios for the scale steps
         basenote: Base note reference (e.g., "C4")
         diapason: A4 frequency in Hz
-        analysis_data: Optional analysis data containing scale information (reserved for future enhancements)
+        system_name: Name of the tuning system (used to extract ET divisions from patterns like "19-TET")
 
     Returns:
         List of note names with microtonal deviation arrows
 
     Note:
-        analysis_data parameter is reserved for future implementation of intelligent
-        note naming based on scale analysis results.
+        system_name is used to extract ET divisions (e.g., from "Equal Temperament 19-TET")
+        to ensure correct octave boundaries for non-12TET systems. Falls back to 12-TET
+        if no ET pattern is found.
     """
 
     # Base names for 12-TET
     base_names = ["C", "C♯/D♭", "D", "D♯/E♭", "E", "F", "F♯/G♭", "G", "G♯/A♭", "A", "A♯/B♭", "B"]
 
-    # If we don't have ratios, fall back to simple cyclic naming
+    # Determine the system's cycle structure from system_name and ratios
+    cycle_size, use_traditional_names = _determine_cycle_structure(system_name, ratios, num_notes)
+
+    # Parse the starting basenote for fallback cases too
+    try:
+        # Parse basenote to get MIDI number using utils function
+        basenote_midi, basenote_cents = utils.parse_note_with_microtones(basenote)
+        # Calculate the starting note index (0=C, 1=C#, etc.) and octave
+        starting_note_index = basenote_midi % 12
+        starting_octave = (basenote_midi // 12) - 1  # MIDI octave mapping: C4 = MIDI 60
+    except (TypeError, ValueError, AttributeError):
+        # Fallback if parsing fails - assume C4
+        starting_note_index = 0  # C
+        starting_octave = 4
+        basenote_cents = 0.0
+
+    # If we don't have ratios, fall back to simple cyclic naming using detected cycle
+    # BUT still respect the basenote for proper octave calculation
     if not ratios:
         note_names = []
         for i in range(num_notes):
-            base_index = i % 12
-            octave_suffix = f"_{i//12}" if i >= 12 else ""
-            note_names.append(base_names[base_index] + octave_suffix)
+            base_index = (starting_note_index + i) % cycle_size if use_traditional_names and cycle_size == 12 else i % cycle_size
+            # Calculate octave taking into account the starting octave
+            cycle_count = i // cycle_size
+            actual_octave = starting_octave + cycle_count
+            octave_suffix = f"_{actual_octave}" if i >= cycle_size else f"_{starting_octave}"
+
+            # Use traditional note names only for 12-step cycles
+            if use_traditional_names and cycle_size == 12:
+                note_names.append(base_names[base_index] + octave_suffix)
+            else:
+                note_names.append(f"Step{base_index}" + octave_suffix)
         return note_names
 
     # Try to use analysis data to generate intelligent note names with arrows
@@ -992,57 +1618,199 @@ def _generate_note_names_for_ascl(num_notes: int, ratios: List[float] = None,
     except (TypeError, ValueError):
         base_freq = 261.626  # Default C4 frequency
 
-    # Generate note names with microtonal arrows
+    # Parse the starting basenote to determine the initial note and octave
+    try:
+        # Parse basenote to get MIDI number using utils function
+        basenote_midi, basenote_cents = utils.parse_note_with_microtones(basenote)
+        # Calculate the starting note index (0=C, 1=C#, etc.) and octave
+        starting_note_index = basenote_midi % 12
+        starting_octave = (basenote_midi // 12) - 1  # MIDI octave mapping: C4 = MIDI 60
+    except (TypeError, ValueError, AttributeError):
+        # Fallback if parsing fails - assume C4
+        starting_note_index = 0  # C
+        starting_octave = 4
+        basenote_cents = 0.0
+
+    # According to ASCL specification:
+    # "The first entry in the sequence applies to the zeroeth note."
+    # However, the zeroeth note is implicit (the basenote/unison)
+    # So we generate note names for each ratio step, not including unison
+    # For 12-TET: the first ratio (semitone above C) gets first name, etc.
+
+    # Check if this is a non-octave cycle to use cents-based naming
+    if not is_octave_repeating and ratios:
+        # For non-octave cycles, use cents-based naming with basenote prefix
+        # Format: (basenote)C(cents)_ e.g., DbC666_, C#C333_
+        note_names = []
+
+        # Extract the basenote name without octave number
+        if basenote_name:
+            # Use the provided basenote_name
+            base_prefix = basenote_name
+        else:
+            # Parse basenote to get just the note name without octave
+            try:
+                # Remove octave number from basenote string
+                import re
+                base_match = re.match(r'^([A-G][#b]?)', basenote)
+                if base_match:
+                    base_prefix = base_match.group(1)
+                    # Convert # to sharp notation for display
+                    base_prefix = base_prefix.replace('#', '♯')
+                else:
+                    base_prefix = "C"
+            except:
+                base_prefix = "C"
+
+        # IMPORTANT: First add the basenote itself (unison = 0 cents)
+        note_names.append(f"{base_prefix}C0_")
+
+        # Then add names for all the ratios
+        for i, ratio in enumerate(ratios):
+            if len(note_names) >= num_notes:
+                break
+            # Calculate cents from basenote
+            cents_from_base = 1200 * math.log2(ratio) if ratio > 0 else 0
+            # Round to nearest cent for clean display
+            cents_rounded = round(cents_from_base)
+            # Create note name with basenote prefix, cents value, and underscore
+            note_names.append(f"{base_prefix}C{cents_rounded}_")
+
+        # Trim to exact number of notes needed
+        return note_names[:num_notes]
+
+    # STEP 1: Generate base note names for all ratios (for octave-based systems)
+    # First, create basic note names based on actual pitches
+    basic_note_names = []
+
     for i, ratio in enumerate(ratios):
-        if i >= num_notes:
+        if len(basic_note_names) >= num_notes:
             break
 
         # Calculate frequency of this scale step
         freq = base_freq * ratio
 
-        # Find closest 12-TET note
-        if diapason > 0:
-            # Convert frequency to MIDI note
-            midi_float = 69 + 12 * math.log2(freq / diapason)
-            closest_midi = round(midi_float)
+        # Convert to MIDI to find closest note
+        midi_from_freq = 69 + 12 * math.log2(freq / diapason) if diapason > 0 else 60
+        closest_midi_note = round(midi_from_freq)
+        note_index = closest_midi_note % 12
+        basic_note_names.append(base_names[note_index])
 
-            # Calculate deviation in cents
-            closest_freq = diapason * (2 ** ((closest_midi - 69) / 12.0))
-            cents_deviation = 1200 * math.log2(freq / closest_freq) if closest_freq > 0 else 0
+    # STEP 2: Apply 48-TET grid to add microtonal adjustments
+    # This is completely separate from note generation - we just modify what we have
+    final_note_names = []
 
-            # Generate base note name
-            note_index = closest_midi % 12
-            octave = (closest_midi // 12) - 1
-            base_name = base_names[note_index]
+    for i in range(len(basic_note_names)):
+        if i >= len(ratios):
+            break
 
-            # Add octave suffix if needed
-            octave_suffix = f"_{octave-4}" if octave != 4 else ""
+        base_name = basic_note_names[i]
+        ratio = ratios[i]
+        freq = base_freq * ratio
 
-            # Add microtonal arrows based on cents deviation
-            arrow_suffix = ""
-            if abs(cents_deviation) > 5:  # Only add arrows for significant deviations
-                if cents_deviation > 25:
-                    arrow_suffix = "↑↑"  # Very sharp
-                elif cents_deviation > 10:
-                    arrow_suffix = "↑"   # Sharp
-                elif cents_deviation < -25:
-                    arrow_suffix = "↓↓"  # Very flat
-                elif cents_deviation < -10:
-                    arrow_suffix = "↓"   # Flat
+        # Calculate the exact frequency in cents relative to A4
+        cents_from_a4 = 1200 * math.log2(freq / diapason) if diapason > 0 else 0
 
-            note_names.append(base_name + arrow_suffix + octave_suffix)
-        else:
-            # Fallback to simple naming
-            base_index = i % 12
-            octave_suffix = f"_{i//12}" if i >= 12 else ""
-            note_names.append(base_names[base_index] + octave_suffix)
+        # Find the closest 48-TET step (each step = 25 cents)
+        tet48_position = cents_from_a4 / 25.0
+        closest_48tet_step = round(tet48_position)
 
-    # Fill remaining notes if needed
+        # Calculate how far off we are from the closest 48-TET step
+        deviation_from_48tet = tet48_position - closest_48tet_step
+        deviation_cents = deviation_from_48tet * 25.0
+
+        # Determine which quarter-tone symbol to use based on 48-TET position
+        # The 48-TET grid divides each semitone (100 cents) into 4 parts of 25 cents each
+        quarter_tone_position = closest_48tet_step % 4
+
+        # Add quarter-tone symbols based on position in 48-TET grid
+        microtonal_suffix = ""
+        if quarter_tone_position == 1:  # 25 cents above base note
+            microtonal_suffix = "!"
+        elif quarter_tone_position == 2:  # 50 cents above base note
+            microtonal_suffix = "+"
+        elif quarter_tone_position == 3:  # 75 cents above base note
+            microtonal_suffix = "+!"
+        # quarter_tone_position == 0 means exactly on a 12-TET note
+
+        # Add fine-tuning arrows for deviations from the 48-TET grid
+        arrow_suffix = ""
+        if abs(deviation_cents) > 6:  # More than 6 cents off the 48-TET grid
+            if deviation_cents > 15:
+                arrow_suffix = "↑↑"  # Very sharp
+            elif deviation_cents > 6:
+                arrow_suffix = "↑"   # Slightly sharp
+            elif deviation_cents < -15:
+                arrow_suffix = "↓↓"  # Very flat
+            elif deviation_cents < -6:
+                arrow_suffix = "↓"   # Slightly flat
+
+        # Combine base name with microtonal adjustments
+        final_note_names.append(base_name + microtonal_suffix + arrow_suffix)
+
+    note_names = final_note_names
+
+    # Fallback: if we don't have enough notes yet, use simple cycle structure
+    # For ASCL format, we don't include octave numbers in note names
     while len(note_names) < num_notes:
         i = len(note_names)
-        base_index = i % 12
-        octave_suffix = f"_{i//12}" if i >= 12 else ""
-        note_names.append(base_names[base_index] + octave_suffix)
+        base_index = i % cycle_size
+        if use_traditional_names and cycle_size == 12:
+            note_names.append(base_names[base_index])
+        else:
+            note_names.append(f"Step{base_index}")
+
+    # Fill remaining notes if needed using cycle structure
+    # For ASCL format, we don't include octave numbers in note names
+    # IMPORTANT: This should rarely be needed if the main loop works correctly
+    # But in case deduplication or other logic reduces the count, we need to fill properly
+    while len(note_names) < num_notes:
+        missing_count = num_notes - len(note_names)
+
+        # If we're missing notes, it's likely due to deduplication
+        # We need to continue the pattern from where we left off
+        # Calculate the logical index for the missing note
+        logical_index = len(note_names)  # This is the index of the missing note in the original ratios array
+
+        # Use the same logic as the main loop to generate the missing note name
+        if logical_index < len(ratios):
+            # We have a ratio for this position, generate name normally
+            ratio = ratios[logical_index]
+            freq = base_freq * ratio if 'base_freq' in locals() else 261.626 * ratio
+
+            if diapason > 0:
+                # Same logic as main loop for consistency
+                midi_float_48tet = 69*4 + 48 * math.log2(freq / diapason)
+                closest_48tet = round(midi_float_48tet)
+                tet48_step = closest_48tet % 48
+                tet12_step = tet48_step // 4
+                base_name = base_names[tet12_step]
+
+                # Add simple microtonal suffix for missing notes
+                microtone_step = tet48_step % 4
+                microtonal_suffix = ""
+                if microtone_step == 1:
+                    microtonal_suffix = "!"
+                elif microtone_step == 2:
+                    microtonal_suffix = "+"
+                elif microtone_step == 3:
+                    microtonal_suffix = "+!"
+
+                note_names.append(base_name + microtonal_suffix)
+            else:
+                # Fallback naming
+                base_index = logical_index % cycle_size if use_traditional_names and cycle_size == 12 else logical_index % cycle_size
+                if use_traditional_names and cycle_size == 12:
+                    note_names.append(base_names[base_index])
+                else:
+                    note_names.append(f"Step{base_index}")
+        else:
+            # No ratio available, use fallback cycle-based naming
+            base_index = logical_index % cycle_size if use_traditional_names and cycle_size == 12 else logical_index % cycle_size
+            if use_traditional_names and cycle_size == 12:
+                note_names.append(base_names[base_index])
+            else:
+                note_names.append(f"Step{base_index}")
 
     return note_names
 
@@ -1188,3 +1956,4 @@ def load_scales_from_dir(dir_path: str = 'scl') -> List[dict]:
     # Cache the result
     _scala_scales_cache = out
     return out
+

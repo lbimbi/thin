@@ -183,8 +183,8 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
 
     normalized = utils.normalize_ratios(vals, reduce_octave=reduce_octave)
 
-    if full_grid and reduce_octave:
-        # Costruisci lista finale di 53 gradi
+    if full_grid:
+        # Costruisci lista finale di gradi per griglia completa
         base = list(normalized)
         if not base or abs(base[0] - 1.0) > consts.RATIO_EPS:
             base.append(1.0)
@@ -203,7 +203,13 @@ def build_danielou_ratios(full_grid: bool = False, reduce_octave: bool = True) -
                     if len(base_52_unique) >= 52:
                         break
 
-        normalized = base_52_unique[:52] + [2.0]
+        # Handle final ratio based on reduce_octave setting
+        if reduce_octave:
+            # When reducing to octave, don't add 2.0 - all ratios should already be in [1,2)
+            normalized = base_52_unique[:52]
+        else:
+            # When not reducing to octave, add the octave (2.0) as the final ratio
+            normalized = base_52_unique[:52] + [2.0]
 
     return normalized
 
