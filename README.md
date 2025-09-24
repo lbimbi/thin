@@ -55,7 +55,7 @@ python3 thin-ne.py --audio-file historical.wav --diapason-analysis --scala-cent 
 ## Supported Tuning Systems
 
 - **Equal Temperament**: Any division of any interval (12-TET, 19-TET, 31-TET, etc.)
-- **Geometric Progressions**: Pythagorean, meantone, well temperaments
+- **Geometric Progressions**: Pythagorean, meantone, and any Rank-1 geometric tuning
 - **Natural Intonation**: 4:5:6 harmonic series, just intonation with prime limits
 - **Danielou Microtonal**: Systematic 53-comma microtonal grid
 - **Custom Systems**: Import from TUN files, audio analysis inference
@@ -108,7 +108,7 @@ THIN/
 └── scl/                   # Scala database (download separately)
 ```
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Audio Analysis Pipeline
 1. **Multi-format Loading**: WAV, MP3, FLAC via librosa
@@ -120,7 +120,7 @@ THIN/
 
 ### Professional Integration
 - **Csound**: GEN -2 tables with exact frequency ratios
-- **DAW Compatibility**: Industry-standard TUN format with exact tuning
+- **Hardware and Software Compatibility**: Industry-standard TUN format with exact tuning
 - **Research Tools**: Excel reports with statistical analysis
 - **Live Performance**: Ableton Live integration for real-time microtuning
 
@@ -236,7 +236,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **librosa** team for comprehensive audio analysis
 - **CREPE** authors for neural pitch detection
 - **Huygens-Fokker Foundation** for maintaining the Scala archive
-- **Csound** community for the cpstun tuning framework
+- **Csound** community for the cpstun tuning opcode
 - Global microtonal music research community
 
 ## Contact & Support
