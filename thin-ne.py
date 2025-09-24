@@ -664,9 +664,7 @@ def main() -> None:
                                     analysis_result=analysis_data,
                                     delta_threshold_hz=audio_params.get('delta_threshold_hz', 0.0))
 
-    # Export separate diapason Excel file if analysis data is available
-    if analysis_data:
-        tables.export_diapason_excel(export_base, analysis_data, basenote, comp_diapason)
+    # Removed _diapason.xlsx Excel generation (keeping only _compare.xlsx)
 
     # Always generate textual Diapason report when --diapason-analysis is active
     try:

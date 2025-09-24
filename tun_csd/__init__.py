@@ -393,9 +393,6 @@ def write_tun_file(output_base: str, diapason: float, ratios: List[float], basek
             "[Tuning]",
         ]
 
-    def tet_freq(offset_semitones: int) -> float:
-        return basefrequency * (2.0 ** (offset_semitones / 12.0))
-
     # Ordina i rapporti per garantire valori crescenti nel segmento custom
     try:
         ratios_sorted = sorted(float(r) for r in ratios)
@@ -403,14 +400,26 @@ def write_tun_file(output_base: str, diapason: float, ratios: List[float], basek
         ratios_sorted = [float(r) for r in ratios]
 
     def note_freq(n: int) -> float:
-        if 0 <= basekey <= 127 and basekey <= n < basekey + len(ratios_sorted):
-            idx = n - basekey
-            if 0 <= idx < len(ratios_sorted):
-                return basefrequency * float(ratios_sorted[idx])
+        """Calculate frequency for MIDI note n.
+
+        For notes within the custom tuning range (basekey to basekey+len(ratios)-1),
+        use the provided ratios. For all other notes, use standard 12-TET.
+        """
+        if 0 <= basekey <= 127:
+            # If within the provided ratios range, use them directly
+            if basekey <= n < basekey + len(ratios_sorted):
+                offset = n - basekey
+                return basefrequency * ratios_sorted[offset]
             else:
-                return tet_freq(n - basekey)
+                # For notes outside the custom range, use standard 12-TET
+                # Calculate 12-TET frequency relative to the standard C0 = MIDI 0
+                # using the reference frequency (f_ref corresponds to C0 in TUN standard)
+                c0_freq = f_ref  # This is already C0 at 8.1757989156437073336 Hz * (diapason/440)
+                return c0_freq * (2.0 ** (n / 12.0))
         else:
-            return tet_freq(n - basekey)
+            # Fallback for invalid basekey - use standard 12-TET from C0
+            c0_freq = f_ref
+            return c0_freq * (2.0 ** (n / 12.0))
 
     for note_idx in range(consts.MIDI_MIN, consts.MIDI_MAX + 1):
         f = note_freq(note_idx)
@@ -818,12 +827,12 @@ def convert_excel_to_outputs(excel_path: str,
         inf = _infer_system(cents_from_excel)
         if inf.get('type') == 'et':
             report_lines.append(
-                f"Inferenza: ET ~ {inf['n']}-TET  step≈{inf['step_cents']:.2f}c  std≈{inf['std_cents']:.2f}c")
+                f"Inference: ET ~ {inf['n']}-TET  step≈{inf['step_cents']:.2f}c  std≈{inf['std_cents']:.2f}c")
         elif inf.get('type') == 'geometric':
             report_lines.append(
-                f"Inferenza: Geometrico  passi={inf['steps']}  passo≈{inf['step_cents']:.2f}c  std≈{inf['std_cents']:.2f}c")
+                f"Inference: Geometric  steps={inf['steps']}  step≈{inf['step_cents']:.2f}c  std≈{inf['std_cents']:.2f}c")
         else:
-            report_lines.append(f"Inferenza: non determinata")
+            report_lines.append(f"Inference: undetermined")
         report_lines.append("")
         # Scala comparison
         top_matches = []
@@ -843,21 +852,21 @@ def convert_excel_to_outputs(excel_path: str,
         if top_matches:
             best = top_matches[0]
             report_lines.append(
-                f"Scala migliore: {best['name']} [{best['file']}]  err medio: {best['avg_cents_error']:.2f} c")
+                f"Best scale: {best['name']} [{best['file']}]  avg err: {best['avg_cents_error']:.2f} c")
             report_lines.append("")
-            report_lines.append("Top 5 corrispondenze:")
-            report_lines.append("Pos  Nome                                   Err (c)         File")
+            report_lines.append("Top 5 matches:")
+            report_lines.append("Pos  Name                                   Err (c)         File")
             for i, it in enumerate(top_matches[:5], start=1):
                 nm = str(it.get('name', ''))[:35]
                 er = f"{float(it.get('avg_cents_error', 0.0)):.2f}"
                 fl = str(it.get('file', ''))
                 report_lines.append(f"{str(i).rjust(3)}  {nm.ljust(35)}  {er.rjust(7)}    {fl}")
         else:
-            report_lines.append("Nessuna scala .scl trovata o confrontabile.")
+            report_lines.append("No .scl scales found or comparable.")
 
         # --- Confronti aggiuntivi: ET / Pitagorici / Naturali ---
         report_lines.append("")
-        report_lines.append("Confronti ET / Pitagorici / Naturali")
+        report_lines.append("Comparisons ET / Pythagorean / Natural")
 
         # ET: valuta n-TET da 5 a 72
         def _et_cents(et_n: int) -> list:
@@ -1141,31 +1150,28 @@ def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapas
     reference_note_index = 0
 
     # Calculate the frequency of our basenote using the diapason and MIDI conversion
-    try:
-        # Parse basenote to get MIDI number
-        import re as _re
-        match = _re.match(r'([A-G][#B]?)(\d+)', basenote.upper())
-        if match:
-            note_name = match.group(1)
-            octave = int(match.group(2))
+    # Parse basenote to get MIDI number
+    import re as _re
+    match = _re.match(r'([A-G][#B]?)(\d+)', basenote.upper())
+    if match:
+        note_name = match.group(1)
+        octave = int(match.group(2))
 
-            # MIDI note number calculation
-            note_to_midi = {
-                'C': 0, 'C#': 1, 'DB': 1, 'D': 2, 'D#': 3, 'EB': 3,
-                'E': 4, 'F': 5, 'F#': 6, 'GB': 6, 'G': 7, 'G#': 8, 'AB': 8,
-                'A': 9, 'A#': 10, 'BB': 10, 'B': 11
-            }
+        # MIDI note number calculation
+        note_to_midi = {
+            'C': 0, 'C#': 1, 'DB': 1, 'D': 2, 'D#': 3, 'EB': 3,
+            'E': 4, 'F': 5, 'F#': 6, 'GB': 6, 'G': 7, 'G#': 8, 'AB': 8,
+            'A': 9, 'A#': 10, 'BB': 10, 'B': 11
+        }
 
-            note_offset = note_to_midi.get(note_name, 0)
-            midi_number = (octave + 1) * 12 + note_offset  # C4 = 60
+        note_offset = note_to_midi.get(note_name, 0)
+        midi_number = (octave + 1) * 12 + note_offset  # C4 = 60
 
-            # Calculate frequency from MIDI number using A4=diapason as reference
-            basenote_frequency = diapason * (2 ** ((midi_number - 69) / 12.0))
-        else:
-            # Fallback to C4 if parsing fails
-            basenote_frequency = 261.6256  # C4
-    except:
-        basenote_frequency = 261.6256  # Fallback to C4
+        # Calculate frequency from MIDI number using A4=diapason as reference
+        basenote_frequency = diapason * (2 ** ((midi_number - 69) / 12.0))
+    else:
+        # Fallback to C4 if parsing fails
+        basenote_frequency = 261.6256  # C4
 
     lines.append(f"! @ABL REFERENCE_PITCH {basenote_octave} {reference_note_index} {basenote_frequency:.1f}")
 
@@ -1292,17 +1298,13 @@ def write_ascl_file(output_base: str, ratios: List[float], basenote: str, diapas
         # Use NOTE_RANGE_BY_INDEX with parsed basenote octave and the basenote index in our scale
         # The second parameter should be the index of the basenote within our custom scale (always 0)
         # because the basenote is the first note (index 0) in our NOTE_NAMES list
-        try:
-            if basenote_octave is not None:
-                # The basenote is always index 0 in our custom scale
-                # This tells Ableton that the reference pitch (basenote) is at index 0 in our scale
-                basenote_index_in_scale = 0  # F# in our 7-note scale is index 0, not index 6
-                lines.append(f"! @ABL NOTE_RANGE_BY_INDEX {basenote_octave} {basenote_index_in_scale}")
-            else:
-                # Fallback to frequency-based range if parsing failed
-                lines.append(f"! @ABL NOTE_RANGE_BY_FREQUENCY {min_freq_with_margin:.1f} {max_freq_with_margin:.1f}")
-        except Exception as e:
-            # Fallback to frequency-based range
+        if basenote_octave is not None:
+            # The basenote is always index 0 in our custom scale
+            # This tells Ableton that the reference pitch (basenote) is at index 0 in our scale
+            basenote_index_in_scale = 0  # F# in our 7-note scale is index 0, not index 6
+            lines.append(f"! @ABL NOTE_RANGE_BY_INDEX {basenote_octave} {basenote_index_in_scale}")
+        else:
+            # Fallback to frequency-based range if parsing failed
             lines.append(f"! @ABL NOTE_RANGE_BY_FREQUENCY {min_freq_with_margin:.1f} {max_freq_with_margin:.1f}")
 
     # @ABL SOURCE: source documentation (optional)
@@ -1649,18 +1651,16 @@ def _generate_note_names_for_ascl(num_notes: int, ratios: List[float] = None,
             base_prefix = basenote_name
         else:
             # Parse basenote to get just the note name without octave
-            try:
-                # Remove octave number from basenote string
-                import re
-                base_match = re.match(r'^([A-G][#b]?)', basenote)
-                if base_match:
-                    base_prefix = base_match.group(1)
-                    # Convert # to sharp notation for display
-                    base_prefix = base_prefix.replace('#', '♯')
-                else:
-                    base_prefix = "C"
-            except:
+            # Remove octave number from basenote string
+            import re
+            base_match = re.match(r'^([A-G][#b]?)', basenote)
+            if base_match:
+                base_prefix = base_match.group(1)
+                # Convert # to sharp notation for display
+                base_prefix = base_prefix.replace('#', '♯')
+            else:
                 base_prefix = "C"
+
 
         # IMPORTANT: First add the basenote itself (unison = 0 cents)
         note_names.append(f"{base_prefix}C0_")
