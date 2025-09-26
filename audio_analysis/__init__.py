@@ -436,7 +436,7 @@ def analyze_audio(audio_path: str,
                     n_bins = int(_np.floor(bins_per_octave * _np.log2(nyquist_freq * 0.95 / fmin)))
                     if n_bins <= 0:
                         raise ValueError("Invalid CQT parameters")
-                    print(f"CQT parameters adjusted: n_bins={n_bins} to avoid Nyquist frequency limit")
+                    print(f"\nCQT parameters adjusted: n_bins={n_bins} to avoid Nyquist frequency limit")
 
                 if n_bins <= 0:
                     return {"f0_hz": f0_hz, "formants": []}
@@ -1081,7 +1081,24 @@ def match_refined_scale_steps(scale_steps: List[Tuple[int, float, int]], dir_pat
         step_cents.append(0.0)
 
     step_cents = sorted(set(step_cents))  # Rimuovi duplicati e ordina
-    print(f"Refined matching with {len(step_cents)} step cents: {[f'{c:.1f}' for c in step_cents]}")
+    # Format step cents for better readability
+    if len(step_cents) <= 18:
+        cents_str = ' '.join([f'{c:.1f}' for c in step_cents])
+    else:
+        # For long lists, show first 15 and last 3
+        first_15 = ' '.join([f'{c:.1f}' for c in step_cents[:15]])
+        last_3 = ' '.join([f'{c:.1f}' for c in step_cents[-3:]])
+        cents_str = f"{first_15} ... {last_3}"
+
+    print(f"\n" + "="*60)
+    print(f"Refined Matching with {len(step_cents)}-step scale")
+    print("="*60)
+    print(f"Step cents: {cents_str}")
+    print("="*60)
+
+
+    # Find the result dict in the calling context
+    # This will be stored in the estimate_diapason_and_ratios result dict
 
     # Carica scale Scala
     scales = tun_csd.load_scales_from_dir(dir_path)
@@ -1557,7 +1574,27 @@ def estimate_diapason_and_ratios(audio_path: str,
                     except ValueError:
                         bn_name = None
 
-                    print(f"Base note selected from detected scale: ratio {best_ratio:.6f} (count: {best_count}) -> {bn_name}")
+                    # Format base note selection message
+                    print(f"\n" + "-"*60)
+                    print("BASE NOTE SELECTION")
+                    print("-"*60)
+                    print(f"Selected from detected scale:")
+                    print(f"  Ratio:     {best_ratio:.6f}")
+                    print(f"  Count:     {best_count} occurrences")
+                    print(f"  Note:      {bn_name}")
+                    print(f"  Frequency: {bn_hz:.3f} Hz" if bn_hz else "")
+                    print("-"*60)
+
+                    # Store formatted info for diapason text file
+                    base_note_info = (
+                        f"Base Note Selection:\n"
+                        f"  Source: Detected scale\n"
+                        f"  Ratio: {best_ratio:.6f} (count: {best_count})\n"
+                        f"  Note: {bn_name}\n"
+                        f"  Frequency: {bn_hz:.3f} Hz" if bn_hz else "Base Note Selection: N/A"
+                    )
+                    if isinstance(result, dict):
+                        result['base_note_selection_info'] = base_note_info
         except (ValueError, TypeError, IndexError):
             pass
 
@@ -1591,7 +1628,28 @@ def estimate_diapason_and_ratios(audio_path: str,
                     bn_name = utils.midi_to_note_name_12tet(bn_midi)
                 except ValueError:
                     bn_name = None
-                print(f"Base note selected from F0 analysis (fallback): {bn_name}")
+                print(f"\n" + "-"*60)
+                print("BASE NOTE SELECTION")
+                print("-"*60)
+                print(f"Selected from F0 analysis (fallback):")
+                print(f"  Note:      {bn_name}")
+                print(f"  MIDI:      {bn_midi}" if bn_midi else "")
+                print(f"  Frequency: {bn_hz:.3f} Hz" if bn_hz else "")
+                print("-"*60)
+
+                # Store formatted info for diapason text file
+                base_note_info_parts = [
+                    f"Base Note Selection:",
+                    f"  Source: F0 analysis (fallback)",
+                    f"  Note: {bn_name}"
+                ]
+                if bn_midi:
+                    base_note_info_parts.append(f"  MIDI: {bn_midi}")
+                if bn_hz:
+                    base_note_info_parts.append(f"  Frequency: {bn_hz:.3f} Hz")
+                base_note_info = "\n".join(base_note_info_parts) if bn_name else "Base Note Selection: N/A"
+                if isinstance(result, dict):
+                    result['base_note_selection_info'] = base_note_info
         except ValueError:
             pass
 
@@ -1769,7 +1827,7 @@ def export_diapason_plot_png(output_base: str, analysis_result: dict, basenote_h
 Optional[str]:
     """Esporta un grafico PNG dell'andamento della F0 nel tempo con quattro riferimenti:
     1) 12-TET (Hz), 2) Midicents, 3) Pitagorico 12, 4) Pitagorico 7.
-    Saves as f"{output_base}_diapason.png". Returns the path or None in case of error.
+    Saves as f"{output_base}_f0.png". Returns the path or None in case of error.
     """
     try:
         # Force a non-interactive backend for CLI/headless environments
@@ -1882,7 +1940,7 @@ Optional[str]:
     ax.legend(loc='upper right')
 
     _plt.tight_layout()
-    out_path = f"{output_base}_diapason.png"
+    out_path = f"{output_base}_f0.png"
     try:
         # Ensure output directory exists
         try:

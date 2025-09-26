@@ -140,8 +140,12 @@ def main() -> None:
                           help="Export .scl file (Scala format)")
     grp_opts.add_argument("--export-ableton", action="store_true",
                           help="Export .ascl file (Ableton Live format)")
+    grp_opts.add_argument("--export-kbm", action="store_true",
+                          help="Export .kbm file (Scala keyboard mapping format)")
     grp_opts.add_argument("--tun-integer", action="store_true",
                           help=".tun: round cents to nearest integer value (default: two decimals)")
+    grp_opts.add_argument("--v2", action="store_true",
+                          help=".tun: use AnaMark TUN v2.0 format with [Exact Tuning] section (works with --export-tun)")
     grp_opts.add_argument("--convert", metavar="FILE.xlsx", dest="convert", default=None,
                           help="Convert an Excel sheet (System/Compare) to .csd/.tun/.scl/.ascl using 'Ratio' column or Hz/Base_Hz")
     grp_opts.add_argument("--import-tun", metavar="FILE.tun", dest="import_tun", default=None,
@@ -887,7 +891,7 @@ def main() -> None:
             if est_basenote_midi and isinstance(est_basenote_midi, int) and 0 <= est_basenote_midi <= 127:
                 tun_basekey = est_basenote_midi
 
-        tun_csd.write_tun_file(export_base, tun_diapason, tun_ratios, tun_basekey, tun_basenote, args.tun_integer)
+        tun_csd.write_tun_file(export_base, tun_diapason, tun_ratios, tun_basekey, tun_basenote, args.tun_integer, args.v2)
 
     # Export SCL file if requested
     if args.export_scl:
@@ -1098,6 +1102,84 @@ def main() -> None:
                 ascl_diapason = float(est_diapason)
 
         tun_csd.write_ascl_file(export_base, ascl_ratios, str(args.basenote), ascl_diapason, ascl_system_name)
+
+    # Export KBM file if requested
+    if args.export_kbm:
+        # Use same ratios and diapason logic as other exports
+        kbm_ratios = ratios_eff
+        kbm_basekey = basekey_eff
+        kbm_basenote = basenote
+        kbm_diapason = args.diapason  # Default
+
+        if audio_params.get('diapason_analysis') and analysis_data:
+            # Check user preference for system choice (same as other exports)
+            force_inferred = getattr(args, 'inferred', False)
+            force_scala = getattr(args, 'scala', False)
+
+            use_inferred_system = False
+            inferred_ratios = None
+
+            if force_inferred:
+                tuning_inferred = analysis_data.get('tuning_inferred')
+                if tuning_inferred and isinstance(tuning_inferred, dict):
+                    scale_steps = analysis_data.get('scale_steps')
+                    if scale_steps and len(scale_steps) > 0:
+                        inferred_ratios = [float(ratio) for (_idx, ratio, _count) in scale_steps]
+                        use_inferred_system = True
+                        print(f"KBM: Using inferred system (error: {tuning_inferred.get('avg_cents_error', 'unknown'):.2f}c)")
+
+            elif force_scala:
+                scala_match = analysis_data.get('scala_match_info')
+                if scala_match and isinstance(scala_match, dict):
+                    scala_steps = analysis_data.get('scala_match_steps')
+                    if scala_steps and len(scala_steps) > 0:
+                        inferred_ratios = [float(ratio) for (_idx, ratio, _count) in scala_steps]
+                        use_inferred_system = True
+                        print(f"KBM: Using Scala match system (error: {scala_match.get('avg_cents_error', 'unknown'):.2f}c)")
+
+            else:
+                # Automatic selection based on < 2 cents error
+                tuning_inferred = analysis_data.get('tuning_inferred')
+                if tuning_inferred and isinstance(tuning_inferred, dict):
+                    inferred_error = tuning_inferred.get('avg_cents_error', float('inf'))
+                    if isinstance(inferred_error, (int, float)) and inferred_error < 2.0:
+                        scale_steps = analysis_data.get('scale_steps')
+                        if scale_steps and len(scale_steps) > 0:
+                            inferred_ratios = [float(ratio) for (_idx, ratio, _count) in scale_steps]
+                            use_inferred_system = True
+                            print(f"KBM: Auto-selecting inferred system (error: {inferred_error:.2f}c < 2.0c)")
+
+                if not use_inferred_system:
+                    scala_match = analysis_data.get('scala_match_info')
+                    if scala_match and isinstance(scala_match, dict):
+                        scala_error = scala_match.get('avg_cents_error', float('inf'))
+                        if isinstance(scala_error, (int, float)) and scala_error < 2.0:
+                            scala_steps = analysis_data.get('scala_match_steps')
+                            if scala_steps and len(scala_steps) > 0:
+                                inferred_ratios = [float(ratio) for (_idx, ratio, _count) in scala_steps]
+                                use_inferred_system = True
+                                print(f"KBM: Auto-selecting Scala match system (error: {scala_error:.2f}c < 2.0c)")
+
+            if use_inferred_system and inferred_ratios:
+                kbm_ratios = inferred_ratios
+
+            # Use estimated diapason from analysis if available (unless user specified one)
+            est_diapason = analysis_data.get('diapason_est')
+            if (not user_diapason_set) and (est_diapason and isinstance(est_diapason, (int, float)) and est_diapason > 0):
+                kbm_diapason = float(est_diapason)
+                print(f"KBM: Using estimated diapason from analysis: {est_diapason:.2f} Hz")
+            elif user_diapason_set:
+                print(f"KBM: Using user-specified diapason: {args.diapason:.2f} Hz")
+
+            # Use estimated basenote from analysis if available
+            est_basenote_hz = analysis_data.get('basenote_est_hz')
+            if est_basenote_hz and isinstance(est_basenote_hz, (int, float)) and est_basenote_hz > 0:
+                kbm_basenote = float(est_basenote_hz)
+            est_basenote_midi = analysis_data.get('basenote_est_midi')
+            if est_basenote_midi and isinstance(est_basenote_midi, int) and 0 <= est_basenote_midi <= 127:
+                kbm_basekey = est_basenote_midi
+
+        tun_csd.write_kbm_file(export_base, kbm_ratios, kbm_basekey, kbm_basenote, kbm_diapason)
 
     # When --diapason-analysis is active, also generate a cpstun table (.csd) using the same
     # selection logic as for .tun/.scl (inferred/Scala/raw analysis ratios and estimated basenote),

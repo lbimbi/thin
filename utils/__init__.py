@@ -1604,9 +1604,18 @@ def generate_diapason_text_fallback(output_base: str, diapason_hz: float, baseno
             bn12_name, bn12_midi = nm, md
 
         lines: List[str] = [
-            "DIAPASON – Riferimenti di confronto / Reference systems",
+            "DIAPASON - Reference systems",
             "",
-            f"A4_utente (Hz): {_format_hz(a4_user, digits)}",
+            "=== ANALYSIS LEGEND ===",
+            "• A4_user/A4_estimated: User reference A4 vs. estimated A4 from audio analysis",
+            "• Basenote_Hz: Base frequency for scale construction (user vs. estimated)",
+            "• Clustering: Algorithm parameters used to group detected frequencies into scale degrees",
+            "• Scala_match: Best matching scale from Scala database (if available)",
+            "• Tuning_inferred/comparative: Detected tuning systems based on audio analysis",
+            "• Scale steps: Detected intervals with occurrence counts from audio",
+            "• Fragment analysis: Coverage of theoretical scale degrees in detected audio",
+            "",
+            f"A4_user (Hz): {_format_hz(a4_user, digits)}",
             f"A4_estimated (Hz): {_format_hz(a4_est, digits)}" if isinstance(a4_est, (int, float)) else "A4_estimated (Hz): ",
         ]
 
@@ -1626,7 +1635,7 @@ def generate_diapason_text_fallback(output_base: str, diapason_hz: float, baseno
                 lines.append(f"A4_confidence_95CI: [{a4_ci[0]:.3f}, {a4_ci[1]:.3f}] Hz")
 
         lines.extend([
-            f"Basenote_Hz (utente): {_format_hz(bn_user, digits)}",
+            f"Basenote_Hz (user): {_format_hz(bn_user, digits)}",
             f"Basenote_Hz (estimated): {_format_hz(bn_est_hz, digits)}" if isinstance(bn_est_hz, (int, float)) else "Basenote_Hz (estimated): "
         ])
         if bn12_name and bn12_midi is not None:
@@ -1634,6 +1643,22 @@ def generate_diapason_text_fallback(output_base: str, diapason_hz: float, baseno
         else:
             lines.append("Basenote_12TET (estimated): ")
         lines.append("")
+
+        # Clustering tolerance information
+        try:
+            tolerance_percent = float(analysis_result.get('clustering_tolerance_percent', 2.0)) if isinstance(analysis_result, dict) else 2.0
+            tolerance_cents = float(analysis_result.get('clustering_tolerance_cents_approx', tolerance_percent * 17.3)) if isinstance(analysis_result, dict) else tolerance_percent * 17.3
+            clustering_method = safe_string_conversion(analysis_result.get('clustering_method', 'simple')) if isinstance(analysis_result, dict) else 'simple'
+            scale_size_hint = analysis_result.get('scale_size_hint') if isinstance(analysis_result, dict) else None
+
+            lines.append("Clustering Parameters:")
+            lines.append(f"  Tolerance: {tolerance_percent:.1f}% (≈ {tolerance_cents:.1f} cents)")
+            lines.append(f"  Method: {clustering_method}")
+            if scale_size_hint:
+                lines.append(f"  Scale size hint: {scale_size_hint} degrees")
+            lines.append("")
+        except (ValueError, TypeError, AttributeError):
+            pass
 
         # Scala best match and top-5
         sc_info = analysis_result.get('scala_match_info') if isinstance(analysis_result, dict) else None
@@ -1809,46 +1834,23 @@ def generate_diapason_text_fallback(output_base: str, diapason_hz: float, baseno
                         lines.append(entry)
                 lines.append("")
 
-        # Reference systems (user)
-        lines.append(f"12-TET (utente A4={_format_hz(a4_user, digits)} Hz)")
-        lines.append("Step  Ratio         Hz          Cents  ")
-        ref_rows_user = build_reference_system_rows(bn_user, 12)
-        for (step, ratio, hz, cents) in ref_rows_user["tet"]:
-            lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-        lines.append("")
+        # Base note selection info
+        try:
+            base_selected_info = analysis_result.get('base_note_selection_info') if isinstance(analysis_result, dict) else None
+            if base_selected_info:
+                lines.append(safe_string_conversion(base_selected_info))
+                lines.append("")
+        except (ValueError, TypeError, AttributeError):
+            pass
 
-        lines.append("Pitagorico 12 (utente)")
-        lines.append("Step  Ratio         Hz          Cents  ")
-        for (step, ratio, hz, cents) in ref_rows_user["py12"]:
-            lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-        lines.append("")
-
-        lines.append("Pitagorico 7 (utente)")
-        lines.append("Step  Ratio         Hz          Cents  ")
-        for (step, ratio, hz, cents) in ref_rows_user["py7"]:
-            lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-        lines.append("")
-
-        # Reference systems (estimated)
-        if isinstance(a4_est, (int, float)) and a4_est and isinstance(bn_est_hz, (int, float)) and bn_est_hz:
-            lines.append(f"12-TET (estimated A4={_format_hz(a4_est, digits)} Hz)")
-            lines.append("Step  Ratio         Hz          Cents  ")
-            ref_rows_est = build_reference_system_rows(float(bn_est_hz), 12)
-            for (step, ratio, hz, cents) in ref_rows_est["tet"]:
-                lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-            lines.append("")
-
-            lines.append("Pythagorean 12 (estimated)")
-            lines.append("Step  Ratio         Hz          Cents  ")
-            for (step, ratio, hz, cents) in ref_rows_est["py12"]:
-                lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-            lines.append("")
-
-            lines.append("Pythagorean 7 (estimated)")
-            lines.append("Step  Ratio         Hz          Cents  ")
-            for (step, ratio, hz, cents) in ref_rows_est["py7"]:
-                lines.append(f"{str(step).ljust(5)}{ratio:0.10f}  {_format_hz(hz, digits).rjust(10)}  {cents:7.2f}")
-            lines.append("")
+        # Refined matching info
+        try:
+            refined_info = analysis_result.get('refined_matching_info') if isinstance(analysis_result, dict) else None
+            if refined_info:
+                lines.append(safe_string_conversion(refined_info))
+                lines.append("")
+        except (ValueError, TypeError, AttributeError):
+            pass
 
         # NEW: Fragment analysis section
         fragment_analysis = analysis_result.get('fragment_analysis') if isinstance(analysis_result, dict) else None

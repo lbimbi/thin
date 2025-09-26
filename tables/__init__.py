@@ -230,7 +230,7 @@ def _format_table_row(vals: List[str], widths: List[int]) -> str:
     """Format table row with proper alignment."""
     try:
         return "  ".join(str(vals[i]).ljust(widths[i]) for i in range(len(vals)))
-    except (TypeError, ValueError) as e:
+    except (TypeError, ValueError):
         return "  ".join(str(x) for x in vals)
     except IndexError:
         return "  ".join(str(x) for x in vals)
@@ -495,7 +495,7 @@ def export_diapason_excel(output_base: str, analysis_result: Optional[Dict], bas
             bn_user_display = float(basenote_hz) * (440.0 / float(diapason_hz))
 
         # Basic diapason info
-        ws.append([f"A4_utente (Hz):", f"{a4_user_display:.6f}"])
+        ws.append([f"A4_user (Hz):", f"{a4_user_display:.6f}"])
         a4_est = _safe_get_analysis_field(analysis_result, 'diapason_est')
         ws.append([f"A4_estimated (Hz):", f"{float(a4_est):.6f}" if a4_est else "N/A"])
 
@@ -517,7 +517,7 @@ def export_diapason_excel(output_base: str, analysis_result: Optional[Dict], bas
         if conf_ci and isinstance(conf_ci, (list, tuple)) and len(conf_ci) >= 2:
             ws.append([f"A4_confidence_95CI:", f"[{float(conf_ci[0]):.3f}, {float(conf_ci[1]):.3f}] Hz"])
 
-        ws.append([f"Basenote_Hz (utente):", f"{bn_user_display:.6f}"])
+        ws.append([f"Basenote_Hz (user):", f"{bn_user_display:.6f}"])
         bn_est = _safe_get_analysis_field(analysis_result, 'basenote_est_hz')
         ws.append([f"Basenote_Hz (estimated):", f"{float(bn_est):.6f}" if bn_est else "N/A"])
 
@@ -598,7 +598,7 @@ def export_diapason_excel(output_base: str, analysis_result: Optional[Dict], bas
                     ws.append([idx, f"{ratio:.10f}", f"{hz_user:.6f}", f"{hz_est:.6f}", f"{cents_val:.2f}", count, "", "", "", ""])
 
         # Reference systems (12-TET)
-        add_section_title(f"12-TET (utente A4={a4_user_display:.6f} Hz)")
+        add_section_title(f"12-TET (user A4={a4_user_display:.6f} Hz)")
         ws.append(["Step", "Ratio", "Hz", "Cents"])
 
         for step in range(12):
@@ -654,14 +654,14 @@ def _apply_threshold_filter(str_val: str, delta_str: str, custom_hz: float, ref_
 def _write_comparison_legend(f, basenote_hz: float, diapason_hz: float, base_cmp: float, sub_base: float, tet_divisions: int) -> None:
     """Write comparison legend to file."""
     legend_lines = [
-        "— Legenda confronto —",
-        f"Basenote={basenote_hz:.6f} Hz; Diapason(A4)={diapason_hz:.2f} Hz; Fond. confronto={base_cmp:.6f} Hz; Fond. sub={sub_base:.6f} Hz; TET={tet_divisions}",
-        "• Step/MIDI/Ratio: indice di scala, numero MIDI relativo, rapporto rispetto alla Basenote (ridotto a [1,2)).",
+        "— Comparison Legend —",
+        f"Basenote={basenote_hz:.6f} Hz; Diapason(A4)={diapason_hz:.2f} Hz; Comparison fundamental={base_cmp:.6f} Hz; Sub-harmonic fund.={sub_base:.6f} Hz; TET={tet_divisions}",
+        "• Step/MIDI/Ratio: scale index, relative MIDI number, ratio to Basenote (reduced to [1,2)).",
         "• Custom_Hz: frequency of the generated system (Basenote*Ratio).",
-        "• Harmonic_Hz/Subharm_Hz: armonica/subarmonica più vicina; DeltaHz_* = Custom_Hz − Ref_Hz (Hz; segno indica sopra/sotto).",
-        "• TET_Hz/TET_Note: passo del TET scelto; DeltaHz_TET = scostamento in Hz.",
+        "• Harmonic_Hz/Subharm_Hz: nearest harmonic/subharmonic; DeltaHz_* = Custom_Hz − Ref_Hz (Hz; sign indicates above/below).",
+        "• TET_Hz/TET_Note: chosen TET degree; DeltaHz_TET = deviation in Hz.",
         "• AudioF0_Hz/AudioFormant_Hz/Formant_RelAmp: data from audio analysis (if present); DeltaHz_F0/DeltaHz_Formant = deviation in Hz.",
-        "• Simbolo ≈ indica prossimità visiva (< soglia).",
+        "• Symbol ≈ indicates visual proximity (< threshold).",
         ""
     ]
     for line in legend_lines:
@@ -671,8 +671,8 @@ def _write_comparison_legend(f, basenote_hz: float, diapason_hz: float, base_cmp
 def _get_font_class():
     """Get openpyxl Font class for formatting, returns None if not available."""
     try:
-        from openpyxl.styles import Font as font_cls
-        return font_cls
+        from openpyxl.styles import Font as Font_cls
+        return Font_cls
     except ImportError:
         return None
 
@@ -769,13 +769,13 @@ def _create_legend_sheet(wb, basenote_hz: float, diapason_hz: float, base_cmp: f
 
     ws_leg = wb.create_sheet(title="Legend", index=0)
     legend_it = [
-        "— Legenda confronto —",
-        f"Basenote={basenote_hz:.6f} Hz; Diapason(A4)={diapason_hz:.2f} Hz; Fond. confronto={base_cmp:.6f} Hz; Fond. sub={sub_base:.6f} Hz; TET={tet_divisions}",
-        "• Step/MIDI/Ratio: indice di scala, numero MIDI relativo, rapporto rispetto alla Basenote (ridotto a [1,2)).",
+        "— Comparison Legend —",
+        f"Basenote={basenote_hz:.6f} Hz; Diapason(A4)={diapason_hz:.2f} Hz; Comparison fundamental={base_cmp:.6f} Hz; Sub-harmonic fund.={sub_base:.6f} Hz; TET={tet_divisions}",
+        "• Step/MIDI/Ratio: scale index, relative MIDI number, ratio to Basenote (reduced to [1,2)).",
         "• Custom_Hz: frequency of the generated system (Basenote*Ratio).",
-        "• Harmonic_Hz/Subharm_Hz: armonica/subarmonica più vicina; |DeltaHz_*| = scostamento in Hz (valore assoluto).",
-        "• TET_Hz/TET_Note: passo del TET scelto; |DeltaHz_TET| = scostamento in Hz.",
-        "• AudioF0_Hz/AudioFormant_Hz/Formant_RelAmp: from audio analysis (if present); |DeltaHz_F0|/|DeltaHz_Formant| = deviation in Hz.",
+        "• Harmonic_Hz/Subharm_Hz: nearest harmonic/subharmonic; |DeltaHz_*| = absolute deviation in Hz.",
+        "• TET_Hz/TET_Note: chosen TET degree; |DeltaHz_TET| = absolute deviation in Hz.",
+        "• AudioF0_Hz/AudioFormant_Hz/Formant_RelAmp: from audio analysis (if present); |DeltaHz_F0|/|DeltaHz_Formant| = absolute deviation in Hz.",
     ]
 
     for i, ln in enumerate(legend_it, start=1):
@@ -968,9 +968,9 @@ def _create_diapason_analysis_sheet(wb, analysis_result: Dict, basenote_hz: floa
     # Add summary matching text format
     ws2.append(["DIAPASON – Reference systems"])
     ws2.append([])
-    ws2.append(["A4_utente (Hz):", f"{float(a4_user_eff):.6f}"])
+    ws2.append(["A4_user (Hz):", f"{float(a4_user_eff):.6f}"])
     ws2.append(["A4_estimated (Hz):", f"{a4_est_val:.6f}" if isinstance(a4_est_val, (int, float)) else ""])
-    ws2.append(["Basenote_Hz (utente):", f"{float(bn_user_hz):.6f}"])
+    ws2.append(["Basenote_Hz (user):", f"{float(bn_user_hz):.6f}"])
     ws2.append(["Basenote_Hz (estimated):", f"{bn_est_hz:.6f}" if isinstance(bn_est_hz, (int, float)) else ""])
     if bn12_name and bn12_midi is not None:
         ws2.append(["Basenote_12TET (estimated):", f"{bn12_name} (MIDI {bn12_midi})"])
@@ -1009,8 +1009,8 @@ def _create_diapason_analysis_sheet(wb, analysis_result: Dict, basenote_hz: floa
         sc_thr = _safe_get_analysis_field(analysis_result, 'scala_within_threshold_cents')
 
         if sc_info:
-            _add_bold_title("Scala – migliore corrispondenza (.scl)")
-            ws2.append(["Pos", "Nome", "File", "Err (c)"])
+            _add_bold_title("Scala – best match (.scl)")
+            ws2.append(["Pos", "Name", "File", "Err (c)"])
             rows_sc = utils.process_scale_items_to_rows([sc_info], start_index=1)
             for r in rows_sc:
                 ws2.append(r)
@@ -1022,8 +1022,8 @@ def _create_diapason_analysis_sheet(wb, analysis_result: Dict, basenote_hz: floa
                 thr_str = f" (<= {float(sc_thr):.2f} cents)" if isinstance(sc_thr, (int, float)) else ""
             except (ValueError, TypeError):
                 thr_str = ""
-            _add_bold_title(f"Scala – entro soglia{thr_str}")
-            ws2.append(["Pos", "Nome", "File", "Err (c)"])
+            _add_bold_title(f"Scala – within threshold{thr_str}")
+            ws2.append(["Pos", "Name", "File", "Err (c)"])
             rows_sc3 = utils.process_scale_items_to_rows(sc_within, start_index=1)
             for r in rows_sc3:
                 ws2.append(r)
@@ -1130,9 +1130,9 @@ def _add_reference_systems(ws2, basenote_hz: float, diapason_hz: float, a4_est_v
 
     # User diapason sections
     rows_user = utils.build_reference_system_rows(float(basenote_hz), 12)
-    add_section(f"12-TET (utente A4={float(diapason_hz):.2f} Hz)", rows_user["tet"])
-    add_section("Pitagorico 12 (utente)", rows_user["py12"])
-    add_section("Pitagorico 7 (utente)", rows_user["py7"])
+    add_section(f"12-TET (user A4={float(diapason_hz):.2f} Hz)", rows_user["tet"])
+    add_section("Pythagorean 12 (user)", rows_user["py12"])
+    add_section("Pythagorean 7 (user)", rows_user["py7"])
 
     # Estimated sections if available
     if isinstance(a4_est_val, (int, float)) and a4_est_val > 0:
